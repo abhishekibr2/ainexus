@@ -52,7 +52,6 @@ export const signUpWithGoogleAction = async () => {
   const supabase = await createClient();
   const origin = (await headers()).get("origin");
   
-  // Ensure we have a valid origin, fallback to NEXT_PUBLIC_SITE_URL or localhost
   const redirectUrl = origin || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
   
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -66,18 +65,8 @@ export const signUpWithGoogleAction = async () => {
     },
   });
 
-  if (error) {
-    return {
-      error: true,
-      message: error.message,
-    };
-  }
-
-  if (data.url) {
-    redirect(data.url);
-  }
-
-  return encodedRedirect("success", "/sign-up", "Thanks for signing up! Please check your email for a verification link.");
+  if (error) throw error;
+  if (data.url) redirect(data.url);
 };
 
 export const signInAction = async (formData: FormData) => {
