@@ -1,90 +1,129 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, Plus } from "lucide-react"
+import { Check, ChevronsUpDown, Settings2, Building2 } from "lucide-react"
+import { useRouter } from "next-nprogress-bar";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar"
 
-export function TeamSwitcher({
-  teams,
-}: {
-  teams: {
-    name: string
-    logo: React.ElementType
-    plan: string
-  }[]
-}) {
-  const { isMobile } = useSidebar()
-  const [activeTeam, setActiveTeam] = React.useState(teams[0])
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Skeleton } from "../ui/skeleton"
+
+interface WorkspaceData {
+  id: number;
+  name: string;
+  description: string | null;
+  members: string[];
+  owner: string;
+  created_at: string;
+}
+
+interface TeamSwitcherProps {
+  teams: WorkspaceData[];
+  loading?: boolean;
+}
+
+export function TeamSwitcher({ teams, loading = false }: TeamSwitcherProps) {
+  const router = useRouter()
+  const [open, setOpen] = React.useState(false)
+  const [selectedTeam, setSelectedTeam] = React.useState<WorkspaceData | null>(
+    teams[0] || null
+  )
+
+  // Update selected team when teams change
+  React.useEffect(() => {
+    if (teams.length > 0 && !selectedTeam) {
+      setSelectedTeam(teams[0])
+    }
+  }, [teams, selectedTeam])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-8 w-[150px] bg-gray-200" />
+      </div>
+    )
+  }
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <activeTeam.logo className="size-4" />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">
-                  {activeTeam.name}
-                </span>
-                <span className="truncate text-xs">{activeTeam.plan}</span>
-              </div>
-              <ChevronsUpDown className="ml-auto" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            align="start"
-            side={isMobile ? "bottom" : "right"}
-            sideOffset={4}
-          >
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Teams
-            </DropdownMenuLabel>
-            {teams.map((team, index) => (
-              <DropdownMenuItem
-                key={team.name}
-                onClick={() => setActiveTeam(team)}
-                className="gap-2 p-2"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          aria-label="Select a workspace"
+          className="w-[calc(100%-8px)] justify-between truncate"
+        >
+          <div className="flex items-center truncate min-w-0">
+            <Building2 className="mr-2 h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{selectedTeam?.name || "Select workspace"}</span>
+          </div>
+          <ChevronsUpDown className="ml-2 h-4 w-4 flex-shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-0" side="right" align="start">
+        <Command>
+          <CommandList>
+            <CommandInput placeholder="Search workspace..." />
+            <CommandEmpty>No workspace found.</CommandEmpty>
+            {teams.length > 0 && (
+              <CommandGroup heading="Workspaces">
+                {teams.map((team) => (
+                  <CommandItem
+                    key={team.id}
+                    onSelect={() => {
+                      setSelectedTeam(team)
+                      setOpen(false)
+                    }}
+                    className="text-sm"
+                  >
+                    <Building2 className="mr-2 h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{team.name}</span>
+                    <Check
+                      className={cn(
+                        "ml-auto h-4 w-4 flex-shrink-0",
+                        selectedTeam?.id === team.id
+                          ? "opacity-100"
+                          : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+          <CommandSeparator />
+          <CommandList>
+            <CommandGroup>
+              <CommandItem
+                onSelect={() => {
+                  router.push('/protected/workspaces')
+                  setOpen(false)
+                }}
               >
-                <div className="flex size-6 items-center justify-center rounded-sm border">
-                  <team.logo className="size-4 shrink-0" />
-                </div>
-                {team.name}
-                <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 p-2">
-              <div className="flex size-6 items-center justify-center rounded-md border bg-background">
-                <Plus className="size-4" />
-              </div>
-              <div className="font-medium text-muted-foreground">Add team</div>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+                <Settings2 className="mr-2 h-5 w-5 flex-shrink-0" />
+                Manage Workspaces
+              </CommandItem>
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
 

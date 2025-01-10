@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { AudioWaveform, BookOpen, Bot, Command, Frame, GalleryVerticalEnd, Map, PieChart, Settings2, SquareTerminal, Text } from 'lucide-react'
+import { AudioWaveform, BookOpen, Bot, Clock, Command, Frame, GalleryVerticalEnd, Map, PieChart, Settings2, SquareTerminal, StoreIcon, Text, Sparkles, Brain, Code2, History, Star, Boxes } from 'lucide-react'
 
 import { NavMain } from "@/components/sidebar/nav-main"
 import { NavUser } from "@/components/sidebar/nav-user"
@@ -10,133 +10,119 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { User } from "@supabase/supabase-js"
+import { getUserWorkspaces } from "@/utils/supabase/actions/workspace/workspace"
+import { useEffect, useState } from "react"
+import { Workspace } from "@/utils/supabase/actions/workspace/workspace"
+import { Separator } from "../ui/separator"
+import { cn } from "@/lib/utils"
+import { useSidebar } from "@/components/ui/sidebar"
 
-// This is sample data.
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
-  teams: [
-    {
-      name: "Acme Inc",
-      logo: GalleryVerticalEnd,
-      plan: "Enterprise",
-    },
-    {
-      name: "Acme Corp.",
-      logo: AudioWaveform,
-      plan: "Startup",
-    },
-    {
-      name: "Evil Corp.",
-      logo: Command,
-      plan: "Free",
-    },
-  ],
-  navMain: [
-    {
-      title: "Chat History",
-      url: "#",
-      icon: Text,
-      isActive: true,
-      items: [
-        {
-          title: "History",
-          url: "/protected/history",
-        },
-        {
-          title: "Starred",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Models",
-      url: "#",
-      icon: Bot,
-      items: [
-        {
-          title: "Genesis",
-          url: "#",
-        },
-        {
-          title: "Explorer",
-          url: "#",
-        },
-        {
-          title: "Quantum",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Documentation",
-      url: "#",
-      icon: BookOpen,
-      items: [
-        {
-          title: "Introduction",
-          url: "#",
-        },
-        {
-          title: "Get Started",
-          url: "#",
-        },
-        {
-          title: "Tutorials",
-          url: "#",
-        },
-        {
-          title: "Changelog",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Settings",
-      url: "#",
-      icon: Settings2,
-      items: [
-        {
-          title: "General",
-          url: "#",
-        },
-        {
-          title: "Team",
-          url: "#",
-        },
-        {
-          title: "Billing",
-          url: "#",
-        },
-        {
-          title: "Limits",
-          url: "#",
-        },
-      ],
-    },
-  ],
+interface SerializedUser {
+  id: string;
+  email?: string;
+  user_metadata: {
+    avatar_url?: string;
+    email?: string;
+    name?: string;
+  };
 }
 
-export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: User }) {
+const navMainData = [
+  {
+    title: "Default AI Agent",
+    url: "/",
+    icon: Brain,
+    description: "Your AI assistant dashboard"
+  },
+  {
+    title: "Recent Agents",
+    url: "#",
+    icon: Clock,
+    isActive: true,
+    description: "View your recent interactions",
+    items: [
+      {
+        title: "History",
+        url: "/protected/history",
+        icon: History,
+        description: "Past conversations"
+      },
+      {
+        title: "Starred",
+        url: "#",
+        icon: Star,
+        description: "Bookmarked items"
+      },
+    ],
+  },
+  {
+    title: "Explore Models",
+    url: "/protected/models/explore-models",
+    icon: Boxes,
+    description: "Explore AI models"
+  },
+]
+
+export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: SerializedUser }) {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [loading, setLoading] = useState(true)
+  const { state } = useSidebar()
+
+  useEffect(() => {
+    const loadWorkspaces = async () => {
+      try {
+        const workspacesData = await getUserWorkspaces(user.id)
+        setWorkspaces(workspacesData)
+      } catch (error) {
+        console.error('Error loading workspaces:', error)
+        setWorkspaces([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadWorkspaces()
+  }, [])
+
   return (
-    <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+    <Sidebar
+      collapsible="icon"
+      className="transition-all duration-300 ease-in-out"
+      {...props}
+    >
+      <div className="mx-4 transition-all duration-300">
+        <div className="flex items-center gap-2 py-2" data-sidebar="header">
+          <Sparkles className="h-6 w-6 text-primary transition-transform duration-300 flex-shrink-0" />
+          <div className={cn(
+            "flex flex-col overflow-hidden transition-all duration-300 min-w-0",
+            state === "collapsed" && "w-0 opacity-0"
+          )}>
+            <div className="text-2xl font-bold text-primary truncate">NexusAI</div>
+            <div className="text-xs text-muted-foreground truncate">Your AI Companion</div>
+          </div>
+        </div>
+      </div>
+      <Separator className="my-4" />
+      <SidebarGroupLabel className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        Workspaces
+      </SidebarGroupLabel>
+
+      <SidebarHeader className="px-2">
+        <TeamSwitcher teams={workspaces} loading={loading} />
       </SidebarHeader>
-      <SidebarContent>
-        <NavMain items={data.navMain} />
+
+      <SidebarContent className="px-2">
+        <NavMain items={navMainData} />
       </SidebarContent>
-      <SidebarFooter>
+
+      <SidebarFooter className="mt-auto px-2">
         <NavUser user={user} />
       </SidebarFooter>
-      <SidebarRail />
+
     </Sidebar>
   )
 }

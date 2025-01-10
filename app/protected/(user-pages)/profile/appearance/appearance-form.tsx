@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { useEffect, useState } from "react"
+import { useTheme } from "next-themes"
 
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -38,6 +39,7 @@ type AppearanceFormValues = z.infer<typeof appearanceFormSchema>
 export function AppearanceForm() {
   const [userId, setUserId] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
+  const { theme, setTheme } = useTheme()
   const [defaultValues, setDefaultValues] = useState<Partial<AppearanceFormValues>>({
     theme: "light",
     font: "inter"
@@ -68,12 +70,15 @@ export function AppearanceForm() {
         try {
           const profile = await getProfile(user.id)
           if (profile) {
+            const savedTheme = profile.theme || theme || "light"
+            setTheme(savedTheme)
+            
             setDefaultValues({
-              theme: profile.theme || "light",
+              theme: savedTheme,
               font: profile.font || "inter"
             })
             form.reset({
-              theme: profile.theme || "light",
+              theme: savedTheme,
               font: profile.font || "inter"
             })
           }
@@ -89,7 +94,7 @@ export function AppearanceForm() {
     }
 
     initialize()
-  }, [form, supabase.auth])
+  }, [form, supabase.auth, theme, setTheme])
 
   async function onSubmit(data: AppearanceFormValues) {
     try {
@@ -109,6 +114,35 @@ export function AppearanceForm() {
       })
     }
   }
+
+  const handleThemeChange = async (newTheme: "light" | "dark") => {
+    try {
+      setTheme(newTheme)
+      form.setValue("theme", newTheme)
+      
+      if (userId) {
+        await updateAppearance({
+          ...form.getValues(),
+          theme: newTheme
+        }, userId)
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Could not update theme. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "theme" && value.theme) {
+        setTheme(value.theme)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [form, setTheme])
 
   if (isLoading) {
     return (
@@ -180,7 +214,7 @@ export function AppearanceForm() {
               </FormDescription>
               <FormMessage />
               <RadioGroup
-                onValueChange={field.onChange}
+                onValueChange={handleThemeChange}
                 defaultValue={field.value}
                 className="grid max-w-md grid-cols-2 gap-8 pt-2"
               >
@@ -240,7 +274,6 @@ export function AppearanceForm() {
             </FormItem>
           )}
         />
-
         <Button type="submit">Update preferences</Button>
       </form>
     </Form>
