@@ -1,23 +1,12 @@
 "use client"
 
-import {
-  BadgeCheck,
-  Bell,
-  ChevronsUpDown,
-  CreditCard,
-  LogOut,
-  Sparkles,
-} from "lucide-react"
+import { LogOut, Settings, User as UserIcon } from "lucide-react"
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -29,19 +18,29 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { ThemeSwitcher } from "../theme-switcher"
-import { User } from "@supabase/supabase-js"
-import { commingSoon } from "@/lib/utils"
-import { signOutAction } from "@/app/actions"
-import { useRouter } from "next/navigation"
+import { createClient } from "@/utils/supabase/client"
+import { useRouter } from "next-nprogress-bar";
 
-export function NavUser({
-  user,
-}: {
-  user: User
-}) {
+
+interface SerializedUser {
+  id: string;
+  email?: string;
+  user_metadata: {
+    avatar_url?: string;
+    email?: string;
+    name?: string;
+  };
+}
+
+export function NavUser({ user }: { user: SerializedUser }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/')
+  }
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -51,62 +50,43 @@ export function NavUser({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarFallback className="rounded-lg">{user.user_metadata.email && user.user_metadata.email.toString().charAt(0).toUpperCase()}</AvatarFallback>
+              <Avatar className="size-8">
+                <AvatarImage src={user.user_metadata.avatar_url} />
+                <AvatarFallback>
+                  <UserIcon className="size-4" />
+                </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{user.user_metadata.email.toString().split("@")[0]}</span>
+                <span className="truncate font-semibold">
+                  {user.user_metadata.name || user.email}
+                </span>
+                <span className="truncate text-xs">{user.email}</span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+            align="start"
             side={isMobile ? "bottom" : "right"}
-            align="end"
             sideOffset={4}
           >
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.user_metadata.avatar} alt={user.user_metadata.name} />
-                  <AvatarFallback className="rounded-lg">{user.user_metadata.email && user.user_metadata.email.toString().charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user.user_metadata.name}</span>
-                  <span className="truncate text-xs">{user.user_metadata.email}</span>
-                </div>
-              </div>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              Account
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Sparkles className="size-4 mr-2" />
-                Upgrade to Pro
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => router.push('/protected/profile')}>
-                <BadgeCheck className="size-4 mr-2" />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={commingSoon}>
-                <CreditCard className="size-4 mr-2" />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={commingSoon}>
-                <Bell className="size-4 mr-2" />
-                Notifications
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <ThemeSwitcher />
+            <DropdownMenuItem onClick={() => router.push('/protected/profile')}>
+              <UserIcon className="mr-2 size-4" />
+              Profile
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-sm" onClick={signOutAction}>
-              <LogOut className="size-4 mr-2" />
-              Log out
+            {user.email === "abhishekibr.trainee2@gmail.com" && (
+              <DropdownMenuItem onClick={() => router.push('/protected/admin')}>
+                <Settings className="mr-2 size-4" />
+                Super Admin
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={handleSignOut}>
+              <LogOut className="mr-2 size-4" />
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
