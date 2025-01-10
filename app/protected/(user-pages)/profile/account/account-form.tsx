@@ -5,6 +5,7 @@ import { format } from "date-fns"
 import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { useEffect, useState } from "react"
 
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -33,6 +34,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { updateAccount, getProfile } from "@/utils/supabase/actions/user/profile"
+import { createClient } from "@/utils/supabase/client"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const languages = [
   { label: "English", value: "en" },
@@ -65,27 +69,107 @@ const accountFormSchema = z.object({
 
 type AccountFormValues = z.infer<typeof accountFormSchema>
 
-// This can come from your database or API.
-const defaultValues: Partial<AccountFormValues> = {
-  // name: "Your name",
-  // dob: new Date("2023-01-23"),
-}
-
 export function AccountForm() {
+  const [userId, setUserId] = useState<string>("")
+  const [userEmail, setUserEmail] = useState<string>("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [defaultValues, setDefaultValues] = useState<Partial<AccountFormValues>>({
+    name: "",
+    dob: new Date(),
+    language: "en"
+  })
+  const supabase = createClient()
+
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues,
   })
+  
+  useEffect(() => {
+    async function initialize() {
+      setIsLoading(true)
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) {
+        setIsLoading(false)
+        toast({
+          title: "Error",
+          description: "Could not fetch user data.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (user?.id && user?.email) {
+        setUserId(user.id)
+        setUserEmail(user.email)
+        
+        try {
+          const profile = await getProfile(user.id)
+          if (profile) {
+            setDefaultValues({
+              name: profile.name || "",
+              dob: profile.dob ? new Date(profile.dob) : new Date(),
+              language: profile.language || "en"
+            })
+            form.reset({
+              name: profile.name || "",
+              dob: profile.dob ? new Date(profile.dob) : new Date(),
+              language: profile.language || "en"
+            })
+          }
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Could not fetch account data.",
+            variant: "destructive",
+          })
+        }
+      }
+      setIsLoading(false)
+    }
 
-  function onSubmit(data: AccountFormValues) {
-    toast({
-      title: "You submitted the following values:",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    })
+    initialize()
+  }, [form, supabase.auth])
+
+  async function onSubmit(data: AccountFormValues) {
+    try {
+      if (!userId) {
+        throw new Error("User ID not found")
+      }
+      await updateAccount(data, userId)
+      toast({
+        title: "Account updated",
+        description: "Your account has been updated successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-4 w-full max-w-[250px]" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-10 w-[240px]" />
+          <Skeleton className="h-4 w-full max-w-[250px]" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-10 w-[200px]" />
+          <Skeleton className="h-4 w-full max-w-[250px]" />
+        </div>
+        <Skeleton className="h-10 w-28" />
+      </div>
+    )
   }
 
   return (

@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { useEffect, useState } from "react"
 
 import { toast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
@@ -16,6 +17,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
+import { updateDisplay, getProfile } from "@/utils/supabase/actions/user/profile"
+import { createClient } from "@/utils/supabase/client"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const items = [
   {
@@ -52,26 +56,97 @@ const displayFormSchema = z.object({
 
 type DisplayFormValues = z.infer<typeof displayFormSchema>
 
-// This can come from your database or API.
-const defaultValues: Partial<DisplayFormValues> = {
-  items: ["recents", "home"],
-}
-
 export function DisplayForm() {
+  const [userId, setUserId] = useState<string>("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [defaultValues, setDefaultValues] = useState<Partial<DisplayFormValues>>({
+    items: ["recents", "home"],
+  })
+  const supabase = createClient()
+  
   const form = useForm<DisplayFormValues>({
     resolver: zodResolver(displayFormSchema),
     defaultValues,
   })
+  
+  useEffect(() => {
+    async function initialize() {
+      setIsLoading(true)
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) {
+        setIsLoading(false)
+        toast({
+          title: "Error",
+          description: "Could not fetch user data.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (user?.id) {
+        setUserId(user.id)
+        
+        try {
+          const profile = await getProfile(user.id)
+          if (profile) {
+            const sidebarItems = profile.sidebar || ["recents", "home"]
+            setDefaultValues({
+              items: sidebarItems
+            })
+            form.reset({
+              items: sidebarItems
+            })
+          }
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Could not fetch display preferences.",
+            variant: "destructive",
+          })
+        }
+      }
+      setIsLoading(false)
+    }
 
-  function onSubmit(data: DisplayFormValues) {
-    toast({
-      title: "You submitted the following values:",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    })
+    initialize()
+  }, [form, supabase.auth])
+
+  async function onSubmit(data: DisplayFormValues) {
+    try {
+      if (!userId) {
+        throw new Error("User ID not found")
+      }
+      await updateDisplay(data, userId)
+      toast({
+        title: "Display preferences updated",
+        description: "Your display preferences have been updated successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <div className="space-y-4">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-4 w-full max-w-[250px]" />
+          <div className="space-y-3">
+            {items.map((_, i) => (
+              <div key={i} className="flex items-center space-x-3">
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <Skeleton className="h-10 w-28" />
+      </div>
+    )
   }
 
   return (

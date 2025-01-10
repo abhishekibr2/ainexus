@@ -3,7 +3,10 @@
 import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
+import { Lock } from "lucide-react"
 import { z } from "zod"
+import { useEffect, useState } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -18,14 +21,11 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { updateProfile } from "@/utils/supabase/actions/user/profile"
+import { createClient } from "@/utils/supabase/client"
+import { getProfile } from "@/utils/supabase/actions/user/profile"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const profileFormSchema = z.object({
   username: z
@@ -36,11 +36,6 @@ const profileFormSchema = z.object({
     .max(30, {
       message: "Username must not be longer than 30 characters.",
     }),
-  email: z
-    .string({
-      required_error: "Please select an email to display.",
-    })
-    .email(),
   bio: z.string().max(160).min(4),
   urls: z
     .array(
@@ -53,36 +48,110 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>
 
-// This can come from your database or API.
-const defaultValues: Partial<ProfileFormValues> = {
-  bio: "I own a computer.",
-  urls: [
-    { value: "https://shadcn.com" },
-    { value: "http://twitter.com/shadcn" },
-  ],
-}
-
 export function ProfileForm() {
+  const [userEmail, setUserEmail] = useState<string>("")
+  const [userId, setUserId] = useState<string>("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [defaultValues, setDefaultValues] = useState<Partial<ProfileFormValues>>({
+    username: "",
+    bio: "",
+  })
+  const supabase = createClient()
+  
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues,
     mode: "onChange",
   })
 
+  useEffect(() => {
+    async function initialize() {
+      setIsLoading(true)
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) {
+        setIsLoading(false)
+        toast({
+          title: "Error",
+          description: "Could not fetch user data.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (user?.email && user?.id) {
+        setUserEmail(user.email)
+        setUserId(user.id)
+        
+        try {
+          const profile = await getProfile(user.id)
+          if (profile) {
+            setDefaultValues({
+              username: profile.username || "",
+              bio: profile.bio || "",
+            })
+            form.reset({
+              username: profile.username || "",
+              bio: profile.bio || "",
+            })
+          }
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Could not fetch profile data.",
+            variant: "destructive",
+          })
+        }
+      }
+      setIsLoading(false)
+    }
+
+    initialize()
+  }, [form, supabase.auth])
+
   const { fields, append } = useFieldArray({
     name: "urls",
     control: form.control,
   })
 
-  function onSubmit(data: ProfileFormValues) {
-    toast({
-      title: "You submitted the following values:",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    })
+  async function onSubmit(data: ProfileFormValues) {
+    try {
+      if (!userId) {
+        throw new Error("User ID not found")
+      }
+      await updateProfile(data, userId)
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been updated successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-4 w-full max-w-[250px]" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-4 w-full max-w-[250px]" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-4 w-full max-w-[250px]" />
+        </div>
+        <Skeleton className="h-10 w-28" />
+      </div>
+    )
   }
 
   return (
@@ -105,32 +174,21 @@ export function ProfileForm() {
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a verified email to display" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="m@example.com">m@example.com</SelectItem>
-                  <SelectItem value="m@google.com">m@google.com</SelectItem>
-                  <SelectItem value="m@support.com">m@support.com</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormDescription>
-                You can manage verified email addresses in your{" "}
-                <Link href="/examples/forms">email settings</Link>.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <FormItem>
+          <FormLabel>Email</FormLabel>
+          <div className="flex items-center space-x-2">
+            <Input
+              type="email"
+              value={userEmail}
+              disabled
+              className="bg-muted"
+            />
+            <Lock className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <FormDescription>
+            Your email address is locked and cannot be changed.
+          </FormDescription>
+        </FormItem>
         <FormField
           control={form.control}
           name="bio"
@@ -152,38 +210,6 @@ export function ProfileForm() {
             </FormItem>
           )}
         />
-        <div>
-          {fields.map((field, index) => (
-            <FormField
-              control={form.control}
-              key={field.id}
-              name={`urls.${index}.value`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className={cn(index !== 0 && "sr-only")}>
-                    URLs
-                  </FormLabel>
-                  <FormDescription className={cn(index !== 0 && "sr-only")}>
-                    Add links to your website, blog, or social media profiles.
-                  </FormDescription>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            onClick={() => append({ value: "" })}
-          >
-            Add URL
-          </Button>
-        </div>
         <Button type="submit">Update profile</Button>
       </form>
     </Form>

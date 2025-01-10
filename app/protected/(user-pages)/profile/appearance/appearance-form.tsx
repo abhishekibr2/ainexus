@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { ChevronDown } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { useEffect, useState } from "react"
 
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -18,6 +19,9 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { updateAppearance, getProfile } from "@/utils/supabase/actions/user/profile"
+import { createClient } from "@/utils/supabase/client"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const appearanceFormSchema = z.object({
   theme: z.enum(["light", "dark"], {
@@ -31,26 +35,106 @@ const appearanceFormSchema = z.object({
 
 type AppearanceFormValues = z.infer<typeof appearanceFormSchema>
 
-// This can come from your database or API.
-const defaultValues: Partial<AppearanceFormValues> = {
-  theme: "light",
-}
-
 export function AppearanceForm() {
+  const [userId, setUserId] = useState<string>("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [defaultValues, setDefaultValues] = useState<Partial<AppearanceFormValues>>({
+    theme: "light",
+    font: "inter"
+  })
+  const supabase = createClient()
+
   const form = useForm<AppearanceFormValues>({
     resolver: zodResolver(appearanceFormSchema),
     defaultValues,
   })
+  
+  useEffect(() => {
+    async function initialize() {
+      setIsLoading(true)
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) {
+        setIsLoading(false)
+        toast({
+          title: "Error",
+          description: "Could not fetch user data.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (user?.id) {
+        setUserId(user.id)
+        
+        try {
+          const profile = await getProfile(user.id)
+          if (profile) {
+            setDefaultValues({
+              theme: profile.theme || "light",
+              font: profile.font || "inter"
+            })
+            form.reset({
+              theme: profile.theme || "light",
+              font: profile.font || "inter"
+            })
+          }
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Could not fetch appearance preferences.",
+            variant: "destructive",
+          })
+        }
+      }
+      setIsLoading(false)
+    }
 
-  function onSubmit(data: AppearanceFormValues) {
-    toast({
-      title: "You submitted the following values:",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    })
+    initialize()
+  }, [form, supabase.auth])
+
+  async function onSubmit(data: AppearanceFormValues) {
+    try {
+      if (!userId) {
+        throw new Error("User ID not found")
+      }
+      await updateAppearance(data, userId)
+      toast({
+        title: "Appearance updated",
+        description: "Your appearance preferences have been updated successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <div className="space-y-4">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-4 w-full max-w-[250px]" />
+          <div className="grid max-w-md grid-cols-2 gap-8">
+            <div className="space-y-2">
+              <Skeleton className="h-[120px] w-full" />
+              <Skeleton className="h-4 w-20 mx-auto" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-[120px] w-full" />
+              <Skeleton className="h-4 w-20 mx-auto" />
+            </div>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-4 w-full max-w-[250px]" />
+          <Skeleton className="h-10 w-[200px]" />
+        </div>
+        <Skeleton className="h-10 w-28" />
+      </div>
+    )
   }
 
   return (
