@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/form"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
+import { commingSoon } from "@/lib/utils"
+import { useEffect } from "react"
 
 const notificationsFormSchema = z.object({
   type: z.enum(["all", "mentions", "none"], {
@@ -57,6 +59,10 @@ export function NotificationsForm() {
       ),
     })
   }
+
+  useEffect(() => {
+    commingSoon()
+  }, [])
 
   return (
     <Form {...form}>
