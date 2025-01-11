@@ -47,7 +47,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { createModel, getModels, deleteModel, updateModel } from "@/utils/supabase/actions/assistant/assistant";
+import { createModel, getModels, deleteModel, updateModel, getApplications } from "@/utils/supabase/actions/assistant/assistant";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -195,8 +195,34 @@ export default function AdminPage() {
             icon: availableIcons[0].id,
             is_auth: false,
             code: "",
+            app_id: 0,
         });
         const [isDialogOpen, setIsDialogOpen] = useState(false);
+        const [appOptions, setAppOptions] = useState<Array<{ id: number; name: string; description: string; auth_required: boolean }>>([]);
+        const [isLoadingApps, setIsLoadingApps] = useState(true);
+
+        useEffect(() => {
+            const loadApplications = async () => {
+                try {
+                    const apps = await getApplications();
+                    setAppOptions(apps);
+                    if (apps.length > 0) {
+                        setNewModel(prev => ({ ...prev, app_id: apps[0].id }));
+                    }
+                } catch (error) {
+                    console.error('Error loading applications:', error);
+                    toast({
+                        title: "Error",
+                        description: "Failed to load application types.",
+                        variant: "destructive",
+                    });
+                } finally {
+                    setIsLoadingApps(false);
+                }
+            };
+
+            loadApplications();
+        }, []);
 
         const resetForm = () => {
             setNewModel({
@@ -205,6 +231,7 @@ export default function AdminPage() {
                 icon: availableIcons[0].id,
                 is_auth: false,
                 code: "",
+                app_id: appOptions.length > 0 ? appOptions[0].id : 0,
             });
         };
 
@@ -349,6 +376,38 @@ export default function AdminPage() {
                             </div>
 
                             <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="app_id">App Type</Label>
+                                    {isLoadingApps ? (
+                                        <Skeleton className="h-10 w-full" />
+                                    ) : (
+                                        <select
+                                            id="app_id"
+                                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                            value={newModel.app_id}
+                                            onChange={(e) => {
+                                                const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
+                                                setNewModel({
+                                                    ...newModel,
+                                                    app_id: parseInt(e.target.value),
+                                                    is_auth: selectedApp?.auth_required || false
+                                                });
+                                            }}
+                                        >
+                                            {appOptions.map((app) => (
+                                                <option key={app.id} value={app.id}>
+                                                    {app.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    {appOptions.find(app => app.id === newModel.app_id)?.description && (
+                                        <p className="text-xs text-muted-foreground">
+                                            {appOptions.find(app => app.id === newModel.app_id)?.description}
+                                        </p>
+                                    )}
+                                </div>
+
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-0.5">
                                         <Label htmlFor="is_auth">Authentication Required</Label>
@@ -547,8 +606,31 @@ export default function AdminPage() {
             icon: editingModel?.icon || availableIcons[0].id,
             is_auth: editingModel?.is_auth || false,
             code: editingModel?.code || "",
+            app_id: editingModel?.app_id || 0,
         });
         const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+        const [appOptions, setAppOptions] = useState<Array<{ id: number; name: string; description: string; auth_required: boolean }>>([]);
+        const [isLoadingApps, setIsLoadingApps] = useState(true);
+
+        useEffect(() => {
+            const loadApplications = async () => {
+                try {
+                    const apps = await getApplications();
+                    setAppOptions(apps);
+                } catch (error) {
+                    console.error('Error loading applications:', error);
+                    toast({
+                        title: "Error",
+                        description: "Failed to load application types.",
+                        variant: "destructive",
+                    });
+                } finally {
+                    setIsLoadingApps(false);
+                }
+            };
+
+            loadApplications();
+        }, []);
 
         useEffect(() => {
             if (editingModel) {
@@ -558,6 +640,7 @@ export default function AdminPage() {
                     icon: editingModel.icon,
                     is_auth: editingModel.is_auth,
                     code: editingModel.code,
+                    app_id: editingModel.app_id,
                 });
             }
         }, [editingModel]);
@@ -697,6 +780,38 @@ export default function AdminPage() {
                             </div>
 
                             <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="app_id">App Type</Label>
+                                    {isLoadingApps ? (
+                                        <Skeleton className="h-10 w-full" />
+                                    ) : (
+                                        <select
+                                            id="app_id"
+                                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                            value={modelData.app_id}
+                                            onChange={(e) => {
+                                                const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
+                                                setModelData({
+                                                    ...modelData,
+                                                    app_id: parseInt(e.target.value),
+                                                    is_auth: selectedApp?.auth_required || false
+                                                });
+                                            }}
+                                        >
+                                            {appOptions.map((app) => (
+                                                <option key={app.id} value={app.id}>
+                                                    {app.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    {appOptions.find(app => app.id === modelData.app_id)?.description && (
+                                        <p className="text-xs text-muted-foreground">
+                                            {appOptions.find(app => app.id === modelData.app_id)?.description}
+                                        </p>
+                                    )}
+                                </div>
+
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-0.5">
                                         <Label htmlFor="is_auth">Authentication Required</Label>

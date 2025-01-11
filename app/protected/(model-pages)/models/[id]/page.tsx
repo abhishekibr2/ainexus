@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, Mic, Globe, Paperclip, Send, Clock, Key, Check, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, User2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { createUserChat, updateUserChat, getUserChatById, ChatMessage } from "@/utils/supabase/actions/user/user_chat";
+import { useSearchParams } from 'next/navigation';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { getUserConnections } from "@/utils/supabase/actions/user/connections";
 
-interface Message {
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-}
+type Message = ChatMessage;
 
 interface Model {
     id: number;
@@ -45,25 +45,59 @@ const availableIcons: { [key: string]: any } = {
 
 export default function ModelPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
+    const searchParams = useSearchParams();
+    const chatId = searchParams.get('chatId');
+
     const [model, setModel] = useState<Model | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
+    const [currentChatId, setCurrentChatId] = useState<number | null>(null);
+    const [connectionKeys, setConnectionKeys] = useState<any>(null);
     const { toast } = useToast();
 
     useEffect(() => {
-        const fetchModel = async () => {
+        const fetchModelAndChat = async () => {
             setIsLoading(true);
             try {
                 const supabase = createClient();
                 const { data: { user } } = await supabase.auth.getUser();
 
                 if (user) {
+                    // Fetch model data
                     const models = await getModels(user.id);
                     const foundModel = models.find(m => m.id === parseInt(id));
                     if (foundModel) {
                         setModel(foundModel);
+
+                        // If model requires auth, fetch connection keys
+                        if (foundModel.is_auth) {
+                            const { data: connections } = await getUserConnections(user.id);
+                            // Match using app_id from the model
+                            const modelConnection = connections?.find(c => c.app_id === foundModel.app_id);
+                            if (modelConnection) {
+                                // Convert array of "key=value" strings to object
+                                const keyValueObject = modelConnection.connection_key.reduce((acc: any, curr: string) => {
+                                    const [key, value] = curr.split('=');
+                                    if (key && value) {
+                                        acc[key] = value;
+                                    }
+                                    return acc;
+                                }, {});
+
+                                setConnectionKeys(keyValueObject);
+                            }
+                        }
+
+                        // If chatId is provided, load that chat's messages
+                        if (chatId) {
+                            const chatData = await getUserChatById(parseInt(chatId));
+                            if (chatData) {
+                                setMessages(chatData.chat || []);
+                                setCurrentChatId(chatData.id);
+                            }
+                        }
                     } else {
                         toast({
                             title: "Error",
@@ -73,10 +107,10 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     }
                 }
             } catch (error) {
-                console.error('Error fetching model:', error);
+                console.error('Error fetching data:', error);
                 toast({
                     title: "Error",
-                    description: "Failed to load model. Please try again.",
+                    description: "Failed to load data. Please try again.",
                     variant: "destructive",
                 });
             } finally {
@@ -84,47 +118,89 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
             }
         };
 
-        fetchModel();
-    }, [id]);
+        fetchModelAndChat();
+    }, [id, chatId]);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!input.trim() || !model) return;
 
         setIsTyping(true);
+        const timestamp = Date.now();
         const userMessage: Message = {
-            id: Date.now().toString(),
+            id: `user_${timestamp}_${Math.random().toString(36).substring(2, 11)}`,
             role: 'user',
             content: input.trim()
         };
 
-        setMessages(prev => [...prev, userMessage]);
         setInput('');
 
         try {
-            // Parse and execute the model's code
-            const executeModelCode = new Function('data', `
-                return (async () => {
-                    ${model.code}
-                    return await query(data);
-                })();
-            `);
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
 
-            // Format the data as required
-            const data = {
-                question: userMessage.content
-            };
+            if (user) {
+                // Add user message to UI
+                setMessages(prev => [...prev, userMessage]);
 
-            // Execute the query
-            const response = await executeModelCode(data);
+                let response: any;
+                if (model && model.code) {
+                    try {
+                        // Create a safe execution context
+                        const context = {
+                            async query(data: { question: string }) {
+                                // Execute the model's code in a controlled environment
+                                const result = await eval(`
+                                    (async () => {
+                                        ${model.code}
+                                        return await query(data);
+                                    })()
+                                `);
+                                return result;
+                            }
+                        };
 
-            const assistantMessage: Message = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: response.text || response.message || response.content || response.response || 'No response received'
-            };
+                        // Execute the query with the user's message
+                        response = await context.query({
+                            question: userMessage.content
+                        });
+                    } catch (error) {
+                        console.error('Error executing model code:', error);
+                        response = { text: 'Error executing model code' };
+                    }
+                } else {
+                    response = { text: 'Model code not found' };
+                }
 
-            setMessages(prev => [...prev, assistantMessage]);
+                const assistantMessage: Message = {
+                    id: `assistant_${timestamp + 1}_${Math.random().toString(36).substring(2, 11)}`,
+                    role: 'assistant',
+                    content: response.text || response.message || response.content || response.response || 'No response received'
+                };
+
+                // Add assistant message to UI
+                setMessages(prev => [...prev, assistantMessage]);
+
+                // Handle chat creation or update after we have both messages
+                if (!currentChatId) {
+                    // Create new chat with both messages
+                    const chatData = await createUserChat(user.id, model.id, userMessage.content, assistantMessage);
+                    setCurrentChatId(chatData.id);
+
+                    // Dispatch custom event for new chat
+                    const event = new CustomEvent('chatCreated', {
+                        detail: {
+                            id: chatData.id,
+                            heading: userMessage.content,
+                            model_id: model.id
+                        }
+                    });
+                    window.dispatchEvent(event);
+                } else {
+                    // Update existing chat with both messages
+                    await updateUserChat(currentChatId, [userMessage, assistantMessage]);
+                }
+            }
         } catch (error) {
             console.error('Error:', error);
             toast({
@@ -153,7 +229,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
             <div className="container mx-auto px-4 py-8">
                 <div className="text-center">
                     <h1 className="text-2xl font-bold mb-4">Model Not Found</h1>
-                    <p className="text-muted-foreground mb-4">The model you're looking for doesn't exist or you don't have access to it.</p>
+                    <div className="text-muted-foreground mb-4">The model you're looking for doesn't exist or you don't have access to it.</div>
                     <Button onClick={() => window.history.back()}>Go Back</Button>
                 </div>
             </div>
@@ -172,7 +248,48 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                         className="border-b"
                     >
                         <div className="max-w-4xl mx-auto p-4">
-                            <div className="h-12" /> {/* Placeholder for consistent height */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                                        {(() => {
+                                            const IconComponent = model.icon ? availableIcons[model.icon] || Bot : Bot;
+                                            return <IconComponent className="w-5 h-5" />;
+                                        })()}
+                                    </div>
+                                    <h1 className="text-xl font-semibold">{model.name}</h1>
+                                </div>
+                                {model?.is_auth && (
+                                    <HoverCard>
+                                        <HoverCardTrigger asChild>
+                                            <Button variant="outline" size="sm">
+                                                <Key className="h-4 w-4 mr-2" />
+                                                Connection Keys
+                                            </Button>
+                                        </HoverCardTrigger>
+                                        <HoverCardContent className="w-80">
+                                            <div className="space-y-2">
+                                                <h4 className="text-sm font-semibold">Connection Details</h4>
+                                                {connectionKeys ? (
+                                                    <div className="text-sm space-y-2">
+                                                        {Object.entries(connectionKeys).map(([key, value]) => (
+                                                            <div key={key} className="flex justify-between items-center">
+                                                                <span className="font-medium">{key}:</span>
+                                                                <code className="bg-muted px-1 py-0.5 rounded text-xs">
+                                                                    {value as string}
+                                                                </code>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm text-muted-foreground">
+                                                        No connection keys found. Please set up your connection in the model settings.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </HoverCardContent>
+                                    </HoverCard>
+                                )}
+                            </div>
                         </div>
                     </motion.div>
                 ) : (
@@ -227,7 +344,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                 <h1 className="text-4xl font-bold">
                                     Start chatting with {model.name}
                                 </h1>
-                                <p className="text-gray-400">{model.description}</p >
+                                <div className="text-gray-400">{model.description}</div>
                             </motion.div>
                         </motion.div>
                     ) : (
@@ -253,11 +370,11 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                             <motion.div
                                                 whileHover={{ scale: 1.01 }}
                                                 className={`rounded-2xl p-4 max-w-[70%] ${m.role === 'user'
-                                                        ? 'bg-primary text-primary-foreground rounded-tr-none'
-                                                        : 'bg-muted text-muted-foreground rounded-tl-none'
+                                                    ? 'bg-primary text-primary-foreground rounded-tr-none'
+                                                    : 'bg-muted text-muted-foreground rounded-tl-none'
                                                     }`}
                                             >
-                                                <p className="text-sm">{m.content}</p>
+                                                <div className="text-sm">{m.content}</div>
                                             </motion.div>
                                             {m.role === 'user' && (
                                                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">

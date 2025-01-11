@@ -1,13 +1,13 @@
 import { Database } from "@/lib/database.types";
 import { createClient } from "../../client";
 
-export type Workspace = Database['public']['Tables']['Workspaces']['Row'];
+export type Workspace = Database['public']['Tables']['workspaces']['Row'];
 
 export async function getUserWorkspaces(userId: string) {
     try {
         const supabase = await createClient();
         const { data: workspaces, error } = await supabase
-            .from('Workspaces')
+            .from('workspaces')
             .select('*')
             .or(`owner.eq.${userId},members.cs.{${userId}}`);
 
@@ -28,7 +28,7 @@ export async function createWorkspace(name: string, description?: string) {
 
     // Create workspace with owner and initial members array
     const { data: workspace, error: workspaceError } = await supabase
-        .from('Workspaces')
+        .from('workspaces')
         .insert({
             name,
             description,
@@ -46,7 +46,7 @@ export async function updateWorkspace(workspaceId: number, updates: Partial<Work
     const supabase = await createClient();
 
     const { data, error } = await supabase
-        .from('Workspaces')
+        .from('workspaces')
         .update(updates)
         .eq('id', workspaceId)
         .select()
@@ -60,7 +60,7 @@ export async function deleteWorkspace(workspaceId: number) {
     const supabase = await createClient();
 
     const { error } = await supabase
-        .from('Workspaces')
+        .from('workspaces')
         .delete()
         .eq('id', workspaceId);
 
@@ -72,7 +72,7 @@ export async function addWorkspaceMember(workspaceId: number, memberId: string) 
 
     // First get the current workspace
     const { data: workspace, error: fetchError } = await supabase
-        .from('Workspaces')
+        .from('workspaces')
         .select('members')
         .eq('id', workspaceId)
         .single();
@@ -86,7 +86,7 @@ export async function addWorkspaceMember(workspaceId: number, memberId: string) 
 
     // Update the workspace with the new members array
     const { error: updateError } = await supabase
-        .from('Workspaces')
+        .from('workspaces')
         .update({ members: updatedMembers })
         .eq('id', workspaceId);
 
@@ -98,7 +98,7 @@ export async function removeWorkspaceMember(workspaceId: number, memberId: strin
 
     // First get the current workspace
     const { data: workspace, error: fetchError } = await supabase
-        .from('Workspaces')
+        .from('workspaces')
         .select('members, owner')
         .eq('id', workspaceId)
         .single();
@@ -115,7 +115,7 @@ export async function removeWorkspaceMember(workspaceId: number, memberId: strin
 
     // Update the workspace with the new members array
     const { error: updateError } = await supabase
-        .from('Workspaces')
+        .from('workspaces')
         .update({ members: updatedMembers })
         .eq('id', workspaceId);
 
