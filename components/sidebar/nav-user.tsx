@@ -1,6 +1,7 @@
 "use client"
 
 import { LogOut, Settings, User as UserIcon } from "lucide-react"
+import Link from "next/link"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -74,14 +75,18 @@ export function NavUser({ user }: { user: SerializedUser }) {
               Account
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/protected/profile')}>
-              <UserIcon className="mr-2 size-4" />
-              Profile
+            <DropdownMenuItem asChild>
+              <Link href="/protected/profile" className="flex items-center">
+                <UserIcon className="mr-2 size-4" />
+                Profile
+              </Link>
             </DropdownMenuItem>
             {user.email === "abhishekibr.trainee2@gmail.com" && (
-              <DropdownMenuItem onClick={() => router.push('/protected/admin')}>
-                <Settings className="mr-2 size-4" />
-                Super Admin
+              <DropdownMenuItem asChild>
+                <Link href="/protected/admin" className="flex items-center">
+                  <Settings className="mr-2 size-4" />
+                  Super Admin
+                </Link>
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={handleSignOut}>
