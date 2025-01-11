@@ -56,7 +56,7 @@ type AccountFormValues = z.infer<typeof accountFormSchema>
 export async function updateProfile(data: ProfileFormValues, userId: string) {
     const supabase = createClient()
     const { error } = await supabase
-        .from('User')
+        .from('user')
         .upsert({
             id: userId,
             username: data.username,
@@ -70,7 +70,7 @@ export async function updateProfile(data: ProfileFormValues, userId: string) {
 export async function updateDisplay(data: DisplayFormValues, userId: string) {
     const supabase = createClient()
     const { error } = await supabase
-        .from('User')
+        .from('user')
         .upsert({
             id: userId,
             sidebar: data.items
@@ -83,7 +83,7 @@ export async function updateDisplay(data: DisplayFormValues, userId: string) {
 export async function updateAppearance(data: AppearanceFormValues, userId: string) {
     const supabase = createClient()
     const { error } = await supabase
-        .from('User')
+        .from('user')
         .upsert({
             id: userId,
             theme: data.theme,
@@ -97,7 +97,7 @@ export async function updateAppearance(data: AppearanceFormValues, userId: strin
 export async function updateAccount(data: AccountFormValues, userId: string) {
     const supabase = createClient()
     const { error } = await supabase
-        .from('User')
+        .from('user')
         .upsert({
             id: userId,
             name: data.name,
@@ -112,7 +112,7 @@ export async function updateAccount(data: AccountFormValues, userId: string) {
 export async function getProfile(userId: string) {
     const supabase = createClient()
     const { data, error } = await supabase
-        .from('User')
+        .from('user')
         .select('*')
         .eq('id', userId)
         .single()

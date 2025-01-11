@@ -20,7 +20,8 @@ const modelFormSchema = z.object({
     icon: z.string(),
     is_auth: z.boolean(),
     code: z.string().optional(),
-    created_by: z.string().uuid()
+    created_by: z.string().uuid(),
+    app_id: z.number().int(),
 });
 
 type ModelFormValues = Omit<z.infer<typeof modelFormSchema>, 'id' | 'created_at' | 'created_by'>;
@@ -32,7 +33,7 @@ export async function createModel(data: ModelFormValues, userId: string) {
     const validatedData = modelFormSchema.omit({ id: true, created_at: true, created_by: true }).parse(data);
     
     const { error } = await supabase
-        .from('Assistant')
+        .from('assistant')
         .insert({
             name: validatedData.name,
             description: validatedData.description,
@@ -40,6 +41,7 @@ export async function createModel(data: ModelFormValues, userId: string) {
             is_auth: validatedData.is_auth,
             code: validatedData.code,
             created_by: userId,
+            app_id: validatedData.app_id,
         })
 
     if (error) {
@@ -57,13 +59,14 @@ export async function updateModel(modelId: number, data: ModelFormValues, userId
     const validatedData = modelFormSchema.omit({ id: true, created_at: true, created_by: true }).parse(data);
     
     const { error } = await supabase
-        .from('Assistant')
+        .from('assistant')
         .update({
             name: validatedData.name,
             description: validatedData.description,
             icon: validatedData.icon,
             is_auth: validatedData.is_auth,
             code: validatedData.code,
+            app_id: validatedData.app_id,
         })
         .eq('id', modelId)
         .eq('created_by', userId) // Ensure user owns the model
@@ -80,7 +83,7 @@ export async function deleteModel(modelId: number, userId: string) {
     const supabase = createClient()
     
     const { error } = await supabase
-        .from('Assistant')
+        .from('assistant')
         .delete()
         .eq('id', modelId)
         .eq('created_by', userId) // Ensure user owns the model
@@ -97,7 +100,7 @@ export async function getModels(userId: string) {
     const supabase = createClient()
     
     const { data, error } = await supabase
-        .from('Assistant')
+        .from('assistant')
         .select('*')
         .eq('created_by', userId)
         .order('created_at', { ascending: false })
@@ -114,11 +117,27 @@ export async function getModel(modelId: number, userId: string) {
     const supabase = createClient()
     
     const { data, error } = await supabase
-        .from('Assistant')
+        .from('assistant')
         .select('*')
         .eq('id', modelId)
         .eq('created_by', userId) // Ensure user owns the model
         .single()
+
+    if (error) {
+        console.log(error)
+        throw error
+    }
+    
+    return data
+}
+
+export async function getApplications() {
+    const supabase = createClient()
+    
+    const { data, error } = await supabase
+        .from('application')
+        .select('*')
+        .order('name', { ascending: true })
 
     if (error) {
         console.log(error)

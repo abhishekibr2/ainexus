@@ -9,7 +9,7 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      Workspaces: {
+      workspaces: {
         Row: {
           id: number
           created_at: string
