@@ -13,6 +13,7 @@ import { createUserChat, updateUserChat, getUserChatById, ChatMessage } from "@/
 import { useSearchParams } from 'next/navigation';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { getUserConnections } from "@/utils/supabase/actions/user/connections";
+import { getUserAssignedModels } from "@/utils/supabase/actions/user/assignedModels";
 
 type Message = ChatMessage;
 
@@ -55,6 +56,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
     const [isTyping, setIsTyping] = useState(false);
     const [currentChatId, setCurrentChatId] = useState<number | null>(null);
     const [connectionKeys, setConnectionKeys] = useState<any>(null);
+    const [hasAccess, setHasAccess] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -65,6 +67,16 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                 const { data: { user } } = await supabase.auth.getUser();
 
                 if (user) {
+                    // Check if user has access to this model
+                    const { data: assignedModels } = await getUserAssignedModels(user.id);
+                    const hasModelAccess = assignedModels?.some(m => m.assistant_id === parseInt(id));
+                    setHasAccess(hasModelAccess || false);
+
+                    if (!hasModelAccess) {
+                        setIsLoading(false);
+                        return;
+                    }
+
                     // Fetch model data
                     const models = await getModels(user.id);
                     const foundModel = models.find(m => m.id === parseInt(id));
@@ -74,10 +86,8 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                         // If model requires auth, fetch connection keys
                         if (foundModel.is_auth) {
                             const { data: connections } = await getUserConnections(user.id);
-                            // Match using app_id from the model
                             const modelConnection = connections?.find(c => c.app_id === foundModel.app_id);
                             if (modelConnection) {
-                                // Convert array of "key=value" strings to object
                                 const keyValueObject = modelConnection.connection_key.reduce((acc: any, curr: string) => {
                                     const [key, value] = curr.split('=');
                                     if (key && value) {
@@ -224,12 +234,14 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
         );
     }
 
-    if (!model) {
+    if (!hasAccess || !model) {
         return (
             <div className="container mx-auto px-4 py-8">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold mb-4">Model Not Found</h1>
-                    <div className="text-muted-foreground mb-4">The model you're looking for doesn't exist or you don't have access to it.</div>
+                    <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+                    <div className="text-muted-foreground mb-4">
+                        You don't have access to this model. Please purchase this model from the marketplace.
+                    </div>
                     <Button onClick={() => window.history.back()}>Go Back</Button>
                 </div>
             </div>

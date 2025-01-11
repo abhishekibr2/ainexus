@@ -102,7 +102,6 @@ export async function getModels(userId: string) {
     const { data, error } = await supabase
         .from('assistant')
         .select('*')
-        .eq('created_by', userId)
         .order('created_at', { ascending: false })
 
     if (error) {

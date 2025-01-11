@@ -8,7 +8,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bot, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, Clock, Key, Check, ExternalLink } from "lucide-react";
+import { Bot, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, Clock, Key, Check, ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -84,6 +84,7 @@ const ModelCard = ({ model }: { model: Model }) => {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
     const [showConnectionDialog, setShowConnectionDialog] = useState(false);
+    const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [connectionKeys, setConnectionKeys] = useState("");
     const { toast } = useToast();
 
@@ -222,7 +223,7 @@ const ModelCard = ({ model }: { model: Model }) => {
 
     return (
         <>
-            <AlertDialog>
+            <AlertDialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
                 <AlertDialogTrigger asChild>
                     <MotionCard
                         variants={item}
@@ -368,12 +369,11 @@ const ModelCard = ({ model }: { model: Model }) => {
                     </AlertDialogHeader>
                     <AlertDialogFooter className="flex gap-2 sm:gap-0">
                         <Button
-                            variant="outline"
-                            onClick={() => router.push(`/protected/models/${model.id}`)}
+                            onClick={() => setShowDetailsDialog(false)}
                             className="flex-1 sm:flex-none"
+                            variant="outline"
                         >
-                            View Details
-                            <ExternalLink className="ml-2 h-4 w-4" />
+                            Close
                         </Button>
                         <Button
                             onClick={handleGetModel}
