@@ -212,6 +212,37 @@ const ModelSettingsDialog = ({
                             )}
                             <TabsContent value="advanced" className="space-y-4 mt-4">
                                 <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>Accessible Variables</Label>
+                                        <div className="rounded-lg border p-4 space-y-4">
+                                            <div className="space-y-2">
+                                                <h4 className="font-medium">User Variables</h4>
+                                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                                    <div className="flex items-center space-x-2">
+                                                        <code className="bg-muted px-1 py-0.5 rounded">user.id</code>
+                                                        <span className="text-muted-foreground">User's ID</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
+                                                        <span className="text-muted-foreground">User's email</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {model.is_auth && model.fields && model.fields.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <h4 className="font-medium">Connection Variables</h4>
+                                                    <div className="grid grid-cols-1 gap-2 text-sm">
+                                                        {model.fields.map((field, index) => (
+                                                            <div key={index} className="flex items-center space-x-2">
+                                                                <code className="bg-muted px-1 py-0.5 rounded">vars.{field}</code>
+                                                                <span className="text-muted-foreground">Connection {field}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                     <FormField
                                         control={form.control}
                                         name="instructions"
@@ -365,7 +396,11 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                             const { data: connections } = await getUserConnections(user.id);
                             const modelConnection = connections?.find(c => c.app_id === foundModel.app_id);
                             if (modelConnection) {
-                                const keyValueObject = modelConnection.connection_key.reduce((acc: any, curr: string) => {
+                                // Clean the connection key string and parse it
+                                const cleanedKeys = modelConnection.connection_key
+                                    .map((key: string) => key.replace(/^"/, '').replace(/"$/, '')); // Remove surrounding quotes
+
+                                const keyValueObject = cleanedKeys.reduce((acc: any, curr: string) => {
                                     const [key, value] = curr.split('=');
                                     if (key && value) {
                                         acc[key] = value;
@@ -448,6 +483,17 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     const context = {
                         async query(data: { question: string }) {
                             // Execute the model's code in a controlled environment
+
+                            const connectionKeyString = Object.entries(connectionKeys).map(([key, value]) => `${key}=${value}`).join('&');
+                            //convert connectionKeyString to an object
+                            const vars = connectionKeyString.split('&').reduce((acc: any, curr: string) => {
+                                const [key, value] = curr.split('=');
+                                acc[key] = value;
+                                return acc;
+                            }, {}) as any;
+                            console.log(user.id)
+                            console.log(user.email)
+                            console.log(vars)
                             const result = await eval(`
                                 (async () => {
                                     ${model.code}
@@ -679,11 +725,24 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
 
                                                 // Update connection keys if changed
                                                 if (model.is_auth && newSettings.connectionKeys) {
-                                                    const { error: connectionError } = await updateUserConnection(
-                                                        model.app_id,
-                                                        JSON.stringify(newSettings.connectionKeys)
-                                                    );
-                                                    if (connectionError) throw connectionError;
+                                                    const { data: connections } = await getUserConnections(user.id);
+                                                    const existingConnection = connections?.find(c => c.app_id === model.app_id);
+
+                                                    if (existingConnection) {
+                                                        const { error: connectionError } = await updateUserConnection(
+                                                            existingConnection.id,
+                                                            JSON.stringify(newSettings.connectionKeys)
+                                                        );
+                                                        if (connectionError) throw connectionError;
+                                                    } else {
+                                                        const { error: connectionError } = await addUserConnection(
+                                                            user.id,
+                                                            model.app_id,
+                                                            JSON.stringify(newSettings.connectionKeys),
+                                                            parseInt(id)
+                                                        );
+                                                        if (connectionError) throw connectionError;
+                                                    }
                                                 }
 
                                                 // Update model settings
@@ -763,11 +822,24 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
 
                                                 // Update connection keys if changed
                                                 if (model.is_auth && newSettings.connectionKeys) {
-                                                    const { error: connectionError } = await updateUserConnection(
-                                                        model.app_id,
-                                                        JSON.stringify(newSettings.connectionKeys)
-                                                    );
-                                                    if (connectionError) throw connectionError;
+                                                    const { data: connections } = await getUserConnections(user.id);
+                                                    const existingConnection = connections?.find(c => c.app_id === model.app_id);
+
+                                                    if (existingConnection) {
+                                                        const { error: connectionError } = await updateUserConnection(
+                                                            existingConnection.id,
+                                                            JSON.stringify(newSettings.connectionKeys)
+                                                        );
+                                                        if (connectionError) throw connectionError;
+                                                    } else {
+                                                        const { error: connectionError } = await addUserConnection(
+                                                            user.id,
+                                                            model.app_id,
+                                                            JSON.stringify(newSettings.connectionKeys),
+                                                            parseInt(id)
+                                                        );
+                                                        if (connectionError) throw connectionError;
+                                                    }
                                                 }
 
                                                 // Update model settings
