@@ -88,6 +88,14 @@ const navMainData: NavItem[] = [
 // Custom events
 const MODEL_FAVORITED_EVENT = 'modelFavorited'
 const MODEL_UNFAVORITED_EVENT = 'modelUnfavorited'
+const MODEL_DELETED_EVENT = 'modelDeleted'
+
+// Custom event types
+interface ModelDeletedEvent extends CustomEvent {
+  detail: {
+    modelId: number;
+  };
+}
 
 export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: SerializedUser }) {
   const [loading, setLoading] = useState(true)
@@ -147,7 +155,7 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
           .single();
 
         // Filter assigned models to get favorite models
-        const favModels = modelsData?.data?.filter(model => 
+        const favModels = modelsData?.data?.filter(model =>
           userData?.fav_models?.includes(model.id)
         ) || [];
 
@@ -178,13 +186,67 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
             .single()
         ]);
 
-        const favModels = modelsData?.data?.filter(model => 
+        const favModels = modelsData?.data?.filter(model =>
           userData.data?.fav_models?.includes(model.id)
         ) || [];
 
         setFavoriteModels(favModels);
+        setAssignedModels(modelsData?.data || []);
       } catch (error) {
         console.error('Error refreshing favorite models:', error);
+      }
+    };
+
+    // Add event listener for model deletion
+    const handleModelDeleted = async (event: CustomEvent<{ modelId: number }>) => {
+      const deletedModelId = event.detail.modelId;
+
+      // Update assigned models
+      setAssignedModels(prevModels =>
+        prevModels.filter(model => model.id !== deletedModelId)
+      );
+
+      // Update favorite models
+      setFavoriteModels(prevModels =>
+        prevModels.filter(model => model.id !== deletedModelId)
+      );
+
+      // Update recent chats
+      setRecentChats(prevChats =>
+        prevChats.filter(chat => chat.model_id !== deletedModelId)
+      );
+
+      // Refresh from server to ensure consistency
+      try {
+        const [modelsData, userData, chatsData] = await Promise.all([
+          getUserAssignedModels(user.id),
+          createClient()
+            .from('user')
+            .select('fav_models')
+            .eq('id', user.id)
+            .single(),
+          getUserChats(user.id)
+        ]);
+
+        const favModels = modelsData?.data?.filter(model =>
+          userData.data?.fav_models?.includes(model.id)
+        ) || [];
+
+        setAssignedModels(modelsData?.data || []);
+        setFavoriteModels(favModels);
+        setRecentChats(chatsData || []);
+      } catch (error) {
+        console.error('Error refreshing models after deletion:', error);
+      }
+    };
+
+    // Add event listener for new model assigned
+    const handleModelAssigned = async () => {
+      try {
+        const modelsData = await getUserAssignedModels(user.id);
+        setAssignedModels(modelsData?.data || []);
+      } catch (error) {
+        console.error('Error refreshing assigned models:', error);
       }
     };
 
@@ -209,12 +271,16 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
     window.addEventListener('chatCreated', handleChatCreated as EventListener);
     window.addEventListener(MODEL_FAVORITED_EVENT, handleModelFavorited);
     window.addEventListener(MODEL_UNFAVORITED_EVENT, handleModelFavorited);
+    window.addEventListener('modelAssigned', handleModelAssigned);
+    window.addEventListener(MODEL_DELETED_EVENT, handleModelDeleted as unknown as EventListener);
 
     // Cleanup event listeners
     return () => {
       window.removeEventListener('chatCreated', handleChatCreated as EventListener);
       window.removeEventListener(MODEL_FAVORITED_EVENT, handleModelFavorited);
       window.removeEventListener(MODEL_UNFAVORITED_EVENT, handleModelFavorited);
+      window.removeEventListener('modelAssigned', handleModelAssigned);
+      window.removeEventListener(MODEL_DELETED_EVENT, handleModelDeleted as unknown as EventListener);
     }
   }, [user.id])
 

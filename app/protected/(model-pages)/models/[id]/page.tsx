@@ -528,6 +528,11 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
 
             if (error) throw error;
 
+            // Dispatch modelDeleted event
+            window.dispatchEvent(new CustomEvent('modelDeleted', {
+                detail: { modelId: parseInt(id) }
+            }));
+
             toast({
                 title: "Success",
                 description: "Model deleted successfully",

@@ -28,12 +28,12 @@ import { Label } from "@/components/ui/label";
 const modelConfigSchema = z.object({
     // Step 1: Basic Configuration
     basic: z.object({
-        override_name: z.string().min(2, "Name must be at least 2 characters").optional(),
+        override_name: z.string().optional(),
         override_description: z.string().optional().or(z.string().min(10, "Description must be at least 10 characters")),
     }),
     // Step 2: Authentication (if required)
     auth: z.object({
-        config_keys: z.record(z.string(), z.string()).optional(),
+        config_keys: z.record(z.string(), z.string()),
     }),
     // Step 3: Advanced Settings
     advanced: z.object({
@@ -140,8 +140,8 @@ const ModelCard = ({ model }: { model: Model }) => {
                 throw new Error("User not authenticated");
             }
 
-            // Then assign model to user with additional configuration
-            const { data: assignedModel, error } = await assignModelToUser(
+            // First assign model to user with additional configuration
+            const { data: assignedModel, error: assignError } = await assignModelToUser(
                 user.id,
                 model.app_id,
                 data.basic?.override_name || model.name,
@@ -149,8 +149,11 @@ const ModelCard = ({ model }: { model: Model }) => {
                 data.basic?.override_description,
                 data.advanced?.override_instructions
             );
-            // If auth is required and config keys are provided, save them first
-            if (model.is_auth && data.auth?.config_keys) {
+
+            if (assignError) throw assignError;
+
+            // If auth is required and config keys are provided, save them
+            if (model.is_auth && data.auth?.config_keys && Object.keys(data.auth.config_keys).length > 0) {
                 const { error: connectionError } = await addUserConnection(
                     user.id,
                     model.app_id,
@@ -158,11 +161,12 @@ const ModelCard = ({ model }: { model: Model }) => {
                     assignedModel.id
                 );
 
-                if (connectionError) throw connectionError;
+                if (connectionError) {
+                    // If token storage fails, we should clean up the assigned model
+                    // You might want to add a function to delete the assigned model here
+                    throw new Error("Failed to store authentication tokens: " + connectionError);
+                }
             }
-
-
-            if (error) throw error;
 
             toast({
                 title: "Success",
@@ -330,6 +334,7 @@ const ModelCard = ({ model }: { model: Model }) => {
 
 const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit: (data: ModelConfigValues) => void; onCancel: () => void }) => {
     const [step, setStep] = useState(1);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const totalSteps = model.is_auth ? 3 : 2;
     const form = useForm<ModelConfigValues>({
         resolver: zodResolver(modelConfigSchema),
@@ -337,7 +342,12 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
     });
 
     const onFormSubmit = async (data: ModelConfigValues) => {
-        onSubmit(data);
+        setIsSubmitting(true);
+        try {
+            await onSubmit(data);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     // Prevent form submission on enter key
@@ -566,6 +576,7 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                     setStep(step - 1);
                                 }
                             }}
+                            disabled={isSubmitting}
                         >
                             {step === 1 ? "Cancel" : "Previous"}
                         </Button>
@@ -579,8 +590,25 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                     setStep(step + 1);
                                 }
                             }}
+                            disabled={isSubmitting}
                         >
-                            {step === totalSteps ? "Submit" : "Next"}
+                            {isSubmitting && step === totalSteps ? (
+                                <>
+                                    <motion.div
+                                        className="mr-2 h-4 w-4 animate-spin"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                    >
+                                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </motion.div>
+                                    Adding Model...
+                                </>
+                            ) : (
+                                step === totalSteps ? "Submit" : "Next"
+                            )}
                         </Button>
                     </div>
                 </form>
