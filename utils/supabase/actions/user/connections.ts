@@ -14,13 +14,14 @@ export async function addUserConnection(
     const arrayValues = Object.entries(keyPairs)
       .map(([key, value]) => `${key}=${value}`);
     // Store the connection key as a PostgreSQL array
+    console.log(arrayValues)
     const { data, error } = await supabase
       .from("user_connection")
       .insert({
         user_id: userId,
         app_id: appId,
         user_assigned_assistant_id: userAssignedAssistantId,
-        connection_key: `{${arrayValues.map(v => `"${v}"`).join(',')}}`,  // Format as PostgreSQL array
+        connection_key: `{${arrayValues.map(v => `"${v}"`).join(',')}}`,
       })
       .select()
       .single();
@@ -73,7 +74,19 @@ export async function deleteUserConnection(connectionId: number) {
 export async function updateUserConnection(connectionId: number, connectionKey: string) {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.from("user_connection").update({ connection_key: connectionKey }).eq("id", connectionId);
+    
+    // Parse the JSON string and convert to array format
+    const keyPairs = JSON.parse(connectionKey);
+    const arrayValues = Object.entries(keyPairs)
+      .map(([key, value]) => `${key}=${value}`);
+
+    const { data, error } = await supabase
+      .from("user_connection")
+      .update({ 
+        connection_key: `{${arrayValues.map(v => `"${v}"`).join(',')}}` 
+      })
+      .eq("id", connectionId);
+
     if (error) throw error;
     return { data, error: null };
   } catch (error) {

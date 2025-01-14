@@ -33,7 +33,30 @@ const modelConfigSchema = z.object({
     }),
     // Step 2: Authentication (if required)
     auth: z.object({
-        config_keys: z.record(z.string(), z.string()),
+        config_keys: z.record(z.string(), z.string()).superRefine((value, ctx) => {
+            // Get the fields from the form context
+            const fields = (ctx as any)._def?.fields || [];
+
+            // If there are no fields defined, validation passes
+            if (fields.length === 0) return;
+
+            // Check if all required fields are present and have non-empty values
+            fields.forEach((field: string) => {
+                if (!value[field] || value[field].trim() === '') {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message: `${field} is required`,
+                        path: [field]
+                    });
+                } else if (value[field].trim().length < 3) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message: `${field} must be at least 3 characters`,
+                        path: [field]
+                    });
+                }
+            });
+        }),
     }),
     // Step 3: Advanced Settings
     advanced: z.object({
@@ -45,7 +68,7 @@ const modelConfigSchema = z.object({
 type ModelConfigValues = z.infer<typeof modelConfigSchema>;
 
 // Step form default values
-const defaultModelConfig: Partial<ModelConfigValues> = {
+const defaultModelConfig: ModelConfigValues = {
     basic: {
         override_name: "",
         override_description: "",
@@ -141,19 +164,20 @@ const ModelCard = ({ model }: { model: Model }) => {
             }
 
             // First assign model to user with additional configuration
-            const { data: assignedModel, error: assignError } = await assignModelToUser(
-                user.id,
-                model.app_id,
-                data.basic?.override_name || model.name,
-                model.id,
-                data.basic?.override_description,
-                data.advanced?.override_instructions
-            );
+            if (model.is_auth && data.auth?.config_keys && Object.keys(data.auth.config_keys).length === model.fields?.length) {
+                const { data: assignedModel, error: assignError } = await assignModelToUser(
+                    user.id,
+                    model.app_id,
+                    data.basic?.override_name || model.name,
+                    model.id,
+                    data.basic?.override_description,
+                    data.advanced?.override_instructions
+                );
 
-            if (assignError) throw assignError;
-
-            // If auth is required and config keys are provided, save them
-            if (model.is_auth && data.auth?.config_keys && Object.keys(data.auth.config_keys).length > 0) {
+                if (assignError) throw assignError;
+                console.log(data.auth.config_keys)
+                console.log(Object.keys(data.auth.config_keys))
+                // If auth is required and config keys are provided, save them
                 const { error: connectionError } = await addUserConnection(
                     user.id,
                     model.app_id,
@@ -166,24 +190,31 @@ const ModelCard = ({ model }: { model: Model }) => {
                     // You might want to add a function to delete the assigned model here
                     throw new Error("Failed to store authentication tokens: " + connectionError);
                 }
+                toast({
+                    title: "Success",
+                    description: "Model configured and added successfully",
+                });
+
+                // Dispatch custom event with full model data
+                const event = new CustomEvent('modelAssigned', {
+                    detail: {
+                        assistant_id: model.id,
+                        assistant_name: data.basic?.override_name || model.name,
+                        app_id: model.app_id
+                    }
+                });
+                window.dispatchEvent(event);
+
+                setShowConfigForm(false);
+            }
+            else {
+                toast({
+                    title: "Error",
+                    description: "Please fill out all required fields (marked with *)",
+                    variant: "destructive",
+                });
             }
 
-            toast({
-                title: "Success",
-                description: "Model configured and added successfully",
-            });
-
-            // Dispatch custom event with full model data
-            const event = new CustomEvent('modelAssigned', {
-                detail: {
-                    assistant_id: model.id,
-                    assistant_name: data.basic?.override_name || model.name,
-                    app_id: model.app_id
-                }
-            });
-            window.dispatchEvent(event);
-
-            setShowConfigForm(false);
         } catch (error: any) {
             toast({
                 title: "Error",
@@ -339,6 +370,9 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
     const form = useForm<ModelConfigValues>({
         resolver: zodResolver(modelConfigSchema),
         defaultValues: defaultModelConfig,
+        context: {
+            fields: model.fields || []
+        }
     });
 
     const onFormSubmit = async (data: ModelConfigValues) => {
@@ -467,14 +501,17 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                 <FormField
                                     control={form.control}
                                     name="auth.config_keys"
-                                    render={({ field }) => (
+                                    render={({ field, fieldState }) => (
                                         <FormItem className="space-y-4">
                                             <FormLabel>Configuration Keys</FormLabel>
                                             <FormControl>
                                                 <div className="space-y-3">
                                                     {model.fields?.map((fieldName, index) => (
                                                         <div key={index} className="space-y-2">
-                                                            <Label className="text-sm font-medium">{fieldName}</Label>
+                                                            <Label className="text-sm font-medium">
+                                                                {fieldName}
+                                                                <span className="text-destructive ml-1">*</span>
+                                                            </Label>
                                                             <Input
                                                                 type="text"
                                                                 placeholder={`Enter your ${fieldName}`}
@@ -484,7 +521,15 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                                                     newValue[fieldName] = e.target.value;
                                                                     field.onChange(newValue);
                                                                 }}
+                                                                className={cn(
+                                                                    fieldState.error?.message?.includes(fieldName) && "border-destructive"
+                                                                )}
                                                             />
+                                                            {fieldState.error?.message?.includes(fieldName) && (
+                                                                <p className="text-sm text-destructive">
+                                                                    {fieldState.error.message}
+                                                                </p>
+                                                            )}
                                                         </div>
                                                     ))}
                                                 </div>

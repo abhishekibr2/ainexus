@@ -208,9 +208,6 @@ export default function AdminPage() {
                     setIsLoadingApps(true);
                     const apps = await getApplications();
                     setAppOptions(apps);
-                    if (apps.length > 0) {
-                        setNewModel(prev => ({ ...prev, app_id: apps[0].id }));
-                    }
                 } catch (error) {
                     console.error('Error loading applications:', error);
                     toast({
@@ -233,7 +230,7 @@ export default function AdminPage() {
                 icon: availableIcons[0].id,
                 is_auth: false,
                 code: "",
-                app_id: appOptions.length > 0 ? appOptions[0].id : 0,
+                app_id: 0,
             });
         };
 
@@ -242,6 +239,15 @@ export default function AdminPage() {
                 toast({
                     title: "Error",
                     description: "You must be logged in to create a model.",
+                    variant: "destructive",
+                });
+                return;
+            }
+
+            if (newModel.app_id === 0) {
+                toast({
+                    title: "Error",
+                    description: "Please select an app type.",
                     variant: "destructive",
                 });
                 return;
@@ -294,7 +300,7 @@ export default function AdminPage() {
                     </Button>
                 </DialogTrigger>
                 <DialogContent
-                    className="sm:max-w-[800px] p-0"
+                    className="sm:max-w-[800px] p-0 flex flex-col h-[90vh]"
                     onPointerDownOutside={(e) => {
                         if (isSubmitting) {
                             e.preventDefault();
@@ -306,185 +312,247 @@ export default function AdminPage() {
                         }
                     }}
                 >
-                    <div className="grid grid-cols-5 h-[800px]">
-                        {/* Left Panel - Basic Info */}
-                        <div className="col-span-2 border-r p-6 space-y-6 bg-muted/10">
-                            <DialogHeader>
-                                <DialogTitle>Create New Model</DialogTitle>
-                                <DialogDescription>
-                                    Configure your AI model's basic information.
-                                </DialogDescription>
-                            </DialogHeader>
+                    <DialogHeader className="p-6 pb-0 flex-shrink-0">
+                        <DialogTitle>Create New Model</DialogTitle>
+                        <DialogDescription>
+                            Configure your AI model's settings and behavior.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Model Name</Label>
-                                    <Input
-                                        id="name"
-                                        placeholder="Enter model name"
-                                        value={newModel.name}
-                                        onChange={(e) =>
-                                            setNewModel({ ...newModel, name: e.target.value })
-                                        }
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <Label htmlFor="description">Description</Label>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                                const randomIndex = Math.floor(Math.random() * sampleDescriptions.length);
-                                                setNewModel({
-                                                    ...newModel,
-                                                    description: sampleDescriptions[randomIndex]
-                                                });
-                                            }}
-                                            type="button"
-                                        >
-                                            <Wand2 className="h-4 w-4 mr-2" />
-                                            Generate
-                                        </Button>
-                                    </div>
-                                    <Textarea
-                                        id="description"
-                                        placeholder="Describe what your model does"
-                                        className="h-80 resize-none font-mono text-sm"
-                                        value={newModel.description}
-                                        onChange={(e) =>
-                                            setNewModel({ ...newModel, description: e.target.value })
-                                        }
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Model Icon</Label>
-                                    <div className="grid grid-cols-6 gap-2">
-                                        {availableIcons.map((icon) => {
-                                            const IconComponent = icon.icon;
-                                            const isSelected = newModel.icon === icon.id;
-                                            return (
-                                                <button
-                                                    key={icon.id}
-                                                    className={`p-2 border rounded-lg hover:border-primary transition-colors ${isSelected ? 'border-primary bg-primary/10' : ''
-                                                        }`}
-                                                    onClick={() => handleIconSelect(icon.id)}
-                                                    type="button"
-                                                >
-                                                    <IconComponent className="h-6 w-6" />
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
+                    <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0">
+                        <div className="px-6 pt-4 flex-shrink-0">
+                            <TabsList className="w-full grid grid-cols-3 gap-2 bg-muted p-1 rounded-md">
+                                <TabsTrigger
+                                    value="basic"
+                                    className="w-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm h-9 px-2 text-sm"
+                                >
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Basic Info
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="api"
+                                    className="w-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm h-9 px-2 text-sm"
+                                >
+                                    <Settings className="w-4 h-4 mr-2" />
+                                    API Config
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="code"
+                                    className="w-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm h-9 px-2 text-sm"
+                                >
+                                    <Code2 className="w-4 h-4 mr-2" />
+                                    Code
+                                </TabsTrigger>
+                            </TabsList>
                         </div>
 
-                        {/* Right Panel - API Configuration */}
-                        <div className="col-span-3 p-6 space-y-6">
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2">API Configuration</h3>
-                                <p className="text-sm text-muted-foreground mb-4">
-                                    Configure how your model will interact with the API.
-                                </p>
-                            </div>
+                        <div className="flex-1 min-h-0">
+                            <TabsContent value="basic" className="data-[state=active]:flex flex-col h-full">
+                                <div className="flex-1 overflow-y-auto">
+                                    <div className="p-6 space-y-6">
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="name">Model Name</Label>
+                                                <Input
+                                                    id="name"
+                                                    placeholder="Enter model name"
+                                                    value={newModel.name}
+                                                    onChange={(e) =>
+                                                        setNewModel({ ...newModel, name: e.target.value })
+                                                    }
+                                                />
+                                            </div>
 
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="app_id">App Type</Label>
-                                    {isLoadingApps ? (
-                                        <Skeleton className="h-10 w-full" />
-                                    ) : (
-                                        <select
-                                            id="app_id"
-                                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                            value={newModel.app_id}
-                                            onChange={(e) => {
-                                                const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
-                                                setNewModel({
-                                                    ...newModel,
-                                                    app_id: parseInt(e.target.value),
-                                                    is_auth: selectedApp?.auth_required || false
-                                                });
-                                            }}
-                                        >
-                                            {appOptions.map((app) => (
-                                                <option key={app.id} value={app.id}>
-                                                    {app.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    )}
-                                    {appOptions.find(app => app.id === newModel.app_id)?.description && (
-                                        <p className="text-xs text-muted-foreground">
-                                            {appOptions.find(app => app.id === newModel.app_id)?.description}
-                                        </p>
-                                    )}
-                                </div>
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <Label htmlFor="description">Description</Label>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            const randomIndex = Math.floor(Math.random() * sampleDescriptions.length);
+                                                            setNewModel({
+                                                                ...newModel,
+                                                                description: sampleDescriptions[randomIndex]
+                                                            });
+                                                        }}
+                                                        type="button"
+                                                    >
+                                                        <Wand2 className="h-4 w-4 mr-2" />
+                                                        Generate
+                                                    </Button>
+                                                </div>
+                                                <Textarea
+                                                    id="description"
+                                                    placeholder="Describe what your model does"
+                                                    className="h-40 resize-none font-mono text-sm"
+                                                    value={newModel.description}
+                                                    onChange={(e) =>
+                                                        setNewModel({ ...newModel, description: e.target.value })
+                                                    }
+                                                />
+                                            </div>
 
-                                {/* Display Fields */}
-                                {appOptions.find(app => app.id === newModel.app_id)?.fields && newModel.is_auth && (
-                                    <div className="space-y-2">
-                                        <Label>Required Fields Will be</Label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
-                                                <Badge key={index} className="text-xs">
-                                                    {field}
-                                                </Badge>
-                                            ))}
+                                            <div className="space-y-2">
+                                                <Label>Model Icon</Label>
+                                                <div className="grid grid-cols-6 gap-2">
+                                                    {availableIcons.map((icon) => {
+                                                        const IconComponent = icon.icon;
+                                                        const isSelected = newModel.icon === icon.id;
+                                                        return (
+                                                            <button
+                                                                key={icon.id}
+                                                                className={`p-2 border rounded-lg hover:border-primary transition-colors ${isSelected ? 'border-primary bg-primary/10' : ''
+                                                                    }`}
+                                                                onClick={() => handleIconSelect(icon.id)}
+                                                                type="button"
+                                                            >
+                                                                <IconComponent className="h-6 w-6" />
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                )}
-
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-0.5">
-                                        <Label htmlFor="is_auth">Authentication Required</Label>
-                                        <p className="text-sm text-muted-foreground">
-                                            Enable if your API requires authentication
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        id="is_auth"
-                                        checked={newModel.is_auth}
-                                        onCheckedChange={(checked) => {
-                                            setNewModel({
-                                                ...newModel,
-                                                is_auth: checked,
-                                            });
-                                        }}
-                                    />
                                 </div>
+                            </TabsContent>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="code">Model Code</Label>
-                                    <div className="border rounded-md">
-                                        <Editor
-                                            height="320px"
-                                            defaultLanguage="javascript"
-                                            theme="vs-dark"
-                                            value={newModel.code}
-                                            onChange={(value) => {
-                                                setNewModel({
-                                                    ...newModel,
-                                                    code: value || "",
-                                                });
-                                            }}
-                                            options={{
-                                                minimap: { enabled: false },
-                                                fontSize: 14,
-                                                lineNumbers: "on",
-                                                scrollBeyondLastLine: false,
-                                                automaticLayout: true,
-                                                tabSize: 2,
-                                            }}
-                                        />
+                            <TabsContent value="api" className="data-[state=active]:flex flex-col h-full">
+                                <div className="flex-1 overflow-y-auto">
+                                    <div className="p-6 space-y-6">
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="app_id">App Type</Label>
+                                                {isLoadingApps ? (
+                                                    <Skeleton className="h-10 w-full" />
+                                                ) : (
+                                                    <select
+                                                        id="app_id"
+                                                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                                        value={newModel.app_id}
+                                                        onChange={(e) => {
+                                                            const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
+                                                            setNewModel({
+                                                                ...newModel,
+                                                                app_id: parseInt(e.target.value),
+                                                                is_auth: selectedApp?.auth_required || false
+                                                            });
+                                                        }}
+                                                        required
+                                                    >
+                                                        <option value="0" disabled>Select app type</option>
+                                                        {appOptions.map((app) => (
+                                                            <option key={app.id} value={app.id}>
+                                                                {app.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                                {appOptions.find(app => app.id === newModel.app_id)?.description && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {appOptions.find(app => app.id === newModel.app_id)?.description}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {appOptions.find(app => app.id === newModel.app_id)?.fields && newModel.is_auth && (
+                                                <div className="space-y-2">
+                                                    <Label>Required Fields</Label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
+                                                            <Badge key={index} className="text-xs">
+                                                                {field}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center justify-between">
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor="is_auth">Authentication Required</Label>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Enable if your API requires authentication
+                                                    </p>
+                                                </div>
+                                                <Switch
+                                                    id="is_auth"
+                                                    checked={newModel.is_auth}
+                                                    onCheckedChange={(checked) => {
+                                                        setNewModel({
+                                                            ...newModel,
+                                                            is_auth: checked,
+                                                        });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            </TabsContent>
 
-                            <DialogFooter>
+                            <TabsContent value="code" className="data-[state=active]:flex flex-col h-full">
+                                <div className="flex-1 overflow-y-auto">
+                                    <div className="p-6 space-y-6">
+                                        <div className="rounded-lg border p-4 space-y-4 bg-muted/5">
+                                            <div className="space-y-2">
+                                                <h4 className="font-medium">Accessible Variables</h4>
+                                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                                    <div className="flex items-center space-x-2">
+                                                        <code className="bg-muted px-1 py-0.5 rounded">user.id</code>
+                                                        <span className="text-muted-foreground">User's ID</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
+                                                        <span className="text-muted-foreground">User's email</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {newModel.is_auth && appOptions.find(app => app.id === newModel.app_id)?.fields && (
+                                                <div className="space-y-2">
+                                                    <h4 className="font-medium">Connection Variables</h4>
+                                                    <div className="grid grid-cols-1 gap-2 text-sm">
+                                                        {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
+                                                            <div key={index} className="flex items-center space-x-2">
+                                                                <code className="bg-muted px-1 py-0.5 rounded">vars.{field}</code>
+                                                                <span className="text-muted-foreground">Connection {field}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="border rounded-md">
+                                            <Editor
+                                                height="400px"
+                                                defaultLanguage="javascript"
+                                                theme="vs-dark"
+                                                value={newModel.code}
+                                                onChange={(value) => {
+                                                    setNewModel({
+                                                        ...newModel,
+                                                        code: value || "",
+                                                    });
+                                                }}
+                                                options={{
+                                                    minimap: { enabled: false },
+                                                    fontSize: 14,
+                                                    lineNumbers: "on",
+                                                    scrollBeyondLastLine: false,
+                                                    automaticLayout: true,
+                                                    tabSize: 2,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </TabsContent>
+                        </div>
+
+                        <div className="p-6 border-t flex-shrink-0">
+                            <div className="flex justify-end gap-4">
                                 <Button
                                     variant="outline"
                                     type="button"
@@ -515,9 +583,9 @@ export default function AdminPage() {
                                         'Create Model'
                                     )}
                                 </Button>
-                            </DialogFooter>
+                            </div>
                         </div>
-                    </div>
+                    </Tabs>
                 </DialogContent>
             </Dialog >
         );
@@ -697,6 +765,15 @@ export default function AdminPage() {
                 return;
             }
 
+            if (modelData.app_id === 0) {
+                toast({
+                    title: "Error",
+                    description: "Please select an app type.",
+                    variant: "destructive",
+                });
+                return;
+            }
+
             try {
                 setIsEditSubmitting(true);
                 await updateModel(editingModel.id, modelData, userId);
@@ -756,7 +833,7 @@ export default function AdminPage() {
                 }}
             >
                 <DialogContent
-                    className="sm:max-w-[800px] p-0"
+                    className="sm:max-w-[800px] p-0 flex flex-col h-[90vh]"
                     onPointerDownOutside={(e) => {
                         if (isEditSubmitting) {
                             e.preventDefault();
@@ -768,179 +845,241 @@ export default function AdminPage() {
                         }
                     }}
                 >
-                    <div className="grid grid-cols-5 h-[800px]">
-                        {/* Left Panel - Basic Info */}
-                        <div className="col-span-2 border-r p-6 space-y-6 bg-muted/10">
-                            <DialogHeader>
-                                <DialogTitle>Edit Model</DialogTitle>
-                                <DialogDescription>
-                                    Update your AI model's information.
-                                </DialogDescription>
-                            </DialogHeader>
+                    <DialogHeader className="p-6 pb-0 flex-shrink-0">
+                        <DialogTitle>Edit Model</DialogTitle>
+                        <DialogDescription>
+                            Update your AI model's settings and behavior.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Model Name</Label>
-                                    <Input
-                                        id="name"
-                                        placeholder="Enter model name"
-                                        value={modelData.name}
-                                        onChange={(e) =>
-                                            setModelData({ ...modelData, name: e.target.value })
-                                        }
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <Label htmlFor="description">Description</Label>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={generateRandomDescription}
-                                            type="button"
-                                        >
-                                            <Wand2 className="h-4 w-4 mr-2" />
-                                            Generate
-                                        </Button>
-                                    </div>
-                                    <Textarea
-                                        id="description"
-                                        placeholder="Describe what your model does"
-                                        className="h-80 resize-none font-mono text-sm"
-                                        value={modelData.description}
-                                        onChange={(e) =>
-                                            setModelData({ ...modelData, description: e.target.value })
-                                        }
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Model Icon</Label>
-                                    <div className="grid grid-cols-6 gap-2">
-                                        {availableIcons.map((icon) => {
-                                            const IconComponent = icon.icon;
-                                            const isSelected = modelData.icon === icon.id;
-                                            return (
-                                                <button
-                                                    key={icon.id}
-                                                    className={`p-2 border rounded-lg hover:border-primary transition-colors ${isSelected ? 'border-primary bg-primary/10' : ''
-                                                        }`}
-                                                    onClick={() => handleIconSelect(icon.id)}
-                                                    type="button"
-                                                >
-                                                    <IconComponent className="h-6 w-6" />
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
+                    <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0">
+                        <div className="px-6 pt-4 flex-shrink-0">
+                            <TabsList className="w-full grid grid-cols-3 gap-2 bg-muted p-1 rounded-md">
+                                <TabsTrigger
+                                    value="basic"
+                                    className="w-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm h-9 px-2 text-sm"
+                                >
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Basic Info
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="api"
+                                    className="w-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm h-9 px-2 text-sm"
+                                >
+                                    <Settings className="w-4 h-4 mr-2" />
+                                    API Config
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="code"
+                                    className="w-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-sm h-9 px-2 text-sm"
+                                >
+                                    <Code2 className="w-4 h-4 mr-2" />
+                                    Code
+                                </TabsTrigger>
+                            </TabsList>
                         </div>
 
-                        {/* Right Panel - API Configuration */}
-                        <div className="col-span-3 p-6 space-y-6">
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2">API Configuration</h3>
-                                <p className="text-sm text-muted-foreground mb-4">
-                                    Update how your model interacts with the API.
-                                </p>
-                            </div>
+                        <div className="flex-1 min-h-0">
+                            <TabsContent value="basic" className="data-[state=active]:flex flex-col h-full">
+                                <div className="flex-1 overflow-y-auto">
+                                    <div className="p-6 space-y-6">
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="name">Model Name</Label>
+                                                <Input
+                                                    id="name"
+                                                    placeholder="Enter model name"
+                                                    value={modelData.name}
+                                                    onChange={(e) =>
+                                                        setModelData({ ...modelData, name: e.target.value })
+                                                    }
+                                                />
+                                            </div>
 
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="app_id">App Type</Label>
-                                    {isLoadingApps ? (
-                                        <Skeleton className="h-10 w-full" />
-                                    ) : (
-                                        <select
-                                            id="app_id"
-                                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                            value={modelData.app_id}
-                                            onChange={(e) => {
-                                                const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
-                                                setModelData({
-                                                    ...modelData,
-                                                    app_id: parseInt(e.target.value),
-                                                    is_auth: selectedApp?.auth_required || false
-                                                });
-                                            }}
-                                        >
-                                            {appOptions.map((app) => (
-                                                <option key={app.id} value={app.id}>
-                                                    {app.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    )}
-                                    {appOptions.find(app => app.id === modelData.app_id)?.description && (
-                                        <p className="text-xs text-muted-foreground">
-                                            {appOptions.find(app => app.id === modelData.app_id)?.description}
-                                        </p>
-                                    )}
-                                </div>
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <Label htmlFor="description">Description</Label>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={generateRandomDescription}
+                                                        type="button"
+                                                    >
+                                                        <Wand2 className="h-4 w-4 mr-2" />
+                                                        Generate
+                                                    </Button>
+                                                </div>
+                                                <Textarea
+                                                    id="description"
+                                                    placeholder="Describe what your model does"
+                                                    className="h-40 resize-none font-mono text-sm"
+                                                    value={modelData.description}
+                                                    onChange={(e) =>
+                                                        setModelData({ ...modelData, description: e.target.value })
+                                                    }
+                                                />
+                                            </div>
 
-                                {/* Display Fields */}
-                                {appOptions.find(app => app.id === modelData.app_id)?.fields && modelData.is_auth && (
-                                    <div className="space-y-2">
-                                        <Label>Required Fields Will be</Label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
-                                                <Badge key={index} className="text-xs">
-                                                    {field}
-                                                </Badge>
-                                            ))}
+                                            <div className="space-y-2">
+                                                <Label>Model Icon</Label>
+                                                <div className="grid grid-cols-6 gap-2">
+                                                    {availableIcons.map((icon) => {
+                                                        const IconComponent = icon.icon;
+                                                        const isSelected = modelData.icon === icon.id;
+                                                        return (
+                                                            <button
+                                                                key={icon.id}
+                                                                className={`p-2 border rounded-lg hover:border-primary transition-colors ${isSelected ? 'border-primary bg-primary/10' : ''
+                                                                    }`}
+                                                                onClick={() => handleIconSelect(icon.id)}
+                                                                type="button"
+                                                            >
+                                                                <IconComponent className="h-6 w-6" />
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                )}
-
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-0.5">
-                                        <Label htmlFor="is_auth">Authentication Required</Label>
-                                        <p className="text-sm text-muted-foreground">
-                                            Enable if your API requires authentication
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        id="is_auth"
-                                        checked={modelData.is_auth}
-                                        onCheckedChange={(checked) => {
-                                            setModelData({
-                                                ...modelData,
-                                                is_auth: checked,
-                                            });
-                                        }}
-                                    />
                                 </div>
+                            </TabsContent>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="code">Model Code</Label>
-                                    <div className="border rounded-md">
-                                        <Editor
-                                            height="320px"
-                                            defaultLanguage="javascript"
-                                            theme="vs-dark"
-                                            value={modelData.code}
-                                            onChange={(value) => {
-                                                setModelData({
-                                                    ...modelData,
-                                                    code: value || "",
-                                                });
-                                            }}
-                                            options={{
-                                                minimap: { enabled: false },
-                                                fontSize: 14,
-                                                lineNumbers: "on",
-                                                scrollBeyondLastLine: false,
-                                                automaticLayout: true,
-                                                tabSize: 2,
-                                            }}
-                                        />
+                            <TabsContent value="api" className="data-[state=active]:flex flex-col h-full">
+                                <div className="flex-1 overflow-y-auto">
+                                    <div className="p-6 space-y-6">
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="app_id">App Type</Label>
+                                                {isLoadingApps ? (
+                                                    <Skeleton className="h-10 w-full" />
+                                                ) : (
+                                                    <select
+                                                        id="app_id"
+                                                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                                        value={modelData.app_id}
+                                                        onChange={(e) => {
+                                                            const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
+                                                            setModelData({
+                                                                ...modelData,
+                                                                app_id: parseInt(e.target.value),
+                                                                is_auth: selectedApp?.auth_required || false
+                                                            });
+                                                        }}
+                                                        required
+                                                    >
+                                                        <option value="0" disabled>Select app type</option>
+                                                        {appOptions.map((app) => (
+                                                            <option key={app.id} value={app.id}>
+                                                                {app.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                                {appOptions.find(app => app.id === modelData.app_id)?.description && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {appOptions.find(app => app.id === modelData.app_id)?.description}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {appOptions.find(app => app.id === modelData.app_id)?.fields && modelData.is_auth && (
+                                                <div className="space-y-2">
+                                                    <Label>Required Fields</Label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
+                                                            <Badge key={index} className="text-xs">
+                                                                {field}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center justify-between">
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor="is_auth">Authentication Required</Label>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Enable if your API requires authentication
+                                                    </p>
+                                                </div>
+                                                <Switch
+                                                    id="is_auth"
+                                                    checked={modelData.is_auth}
+                                                    onCheckedChange={(checked) => {
+                                                        setModelData({
+                                                            ...modelData,
+                                                            is_auth: checked,
+                                                        });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            </TabsContent>
 
-                            <DialogFooter>
+                            <TabsContent value="code" className="data-[state=active]:flex flex-col h-full">
+                                <div className="flex-1 overflow-y-auto">
+                                    <div className="p-6 space-y-6">
+                                        <div className="rounded-lg border p-4 space-y-4 bg-muted/5">
+                                            <div className="space-y-2">
+                                                <h4 className="font-medium">Accessible Variables</h4>
+                                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                                    <div className="flex items-center space-x-2">
+                                                        <code className="bg-muted px-1 py-0.5 rounded">user.id</code>
+                                                        <span className="text-muted-foreground">User's ID</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
+                                                        <span className="text-muted-foreground">User's email</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {modelData.is_auth && appOptions.find(app => app.id === modelData.app_id)?.fields && (
+                                                <div className="space-y-2">
+                                                    <h4 className="font-medium">Connection Variables</h4>
+                                                    <div className="grid grid-cols-1 gap-2 text-sm">
+                                                        {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
+                                                            <div key={index} className="flex items-center space-x-2">
+                                                                <code className="bg-muted px-1 py-0.5 rounded">vars.{field}</code>
+                                                                <span className="text-muted-foreground">Connection {field}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="border rounded-md">
+                                            <Editor
+                                                height="400px"
+                                                defaultLanguage="javascript"
+                                                theme="vs-dark"
+                                                value={modelData.code}
+                                                onChange={(value) => {
+                                                    setModelData({
+                                                        ...modelData,
+                                                        code: value || "",
+                                                    });
+                                                }}
+                                                options={{
+                                                    minimap: { enabled: false },
+                                                    fontSize: 14,
+                                                    lineNumbers: "on",
+                                                    scrollBeyondLastLine: false,
+                                                    automaticLayout: true,
+                                                    tabSize: 2,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </TabsContent>
+                        </div>
+
+                        <div className="p-6 border-t flex-shrink-0">
+                            <div className="flex justify-end gap-4">
                                 <Button
                                     variant="outline"
                                     type="button"
@@ -965,9 +1104,9 @@ export default function AdminPage() {
                                         'Update Model'
                                     )}
                                 </Button>
-                            </DialogFooter>
+                            </div>
                         </div>
-                    </div>
+                    </Tabs>
                 </DialogContent>
             </Dialog>
         );
