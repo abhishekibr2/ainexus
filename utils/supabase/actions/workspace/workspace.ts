@@ -42,29 +42,55 @@ export async function createWorkspace(name: string, description?: string) {
     return workspace;
 }
 
-export async function updateWorkspace(workspaceId: number, updates: Partial<Workspace>) {
-    const supabase = await createClient();
+export async function getWorkspaceById(workspaceId: string | number) {
+    try {
+        const supabase = await createClient();
+        const { data: workspace, error } = await supabase
+            .from('workspaces')
+            .select('*')
+            .eq('id', workspaceId)
+            .single();
 
-    const { data, error } = await supabase
-        .from('workspaces')
-        .update(updates)
-        .eq('id', workspaceId)
-        .select()
-        .single();
-
-    if (error) throw error;
-    return data;
+        if (error) throw error;
+        return workspace;
+    } catch (error) {
+        console.error('Error in getWorkspaceById:', error);
+        throw error;
+    }
 }
 
-export async function deleteWorkspace(workspaceId: number) {
-    const supabase = await createClient();
+export async function updateWorkspaceDetails(workspaceId: string | number, updates: { name?: string; description?: string }) {
+    try {
+        const supabase = await createClient();
+        const { data, error } = await supabase
+            .from('workspaces')
+            .update(updates)
+            .eq('id', workspaceId)
+            .select()
+            .single();
 
-    const { error } = await supabase
-        .from('workspaces')
-        .delete()
-        .eq('id', workspaceId);
+        if (error) throw error;
+        return data;
+    } catch (error) {
+        console.error('Error in updateWorkspaceDetails:', error);
+        throw error;
+    }
+}
 
-    if (error) throw error;
+export async function deleteWorkspaceById(workspaceId: string | number) {
+    try {
+        const supabase = await createClient();
+        const { error } = await supabase
+            .from('workspaces')
+            .delete()
+            .eq('id', workspaceId);
+
+        if (error) throw error;
+        return true;
+    } catch (error) {
+        console.error('Error in deleteWorkspaceById:', error);
+        throw error;
+    }
 }
 
 export async function addWorkspaceMember(workspaceId: number, memberId: string) {

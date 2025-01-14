@@ -23,11 +23,13 @@ export function NavMain({
   items,
 }: {
   items: {
+    id: string
     title: string
     url: string
     icon?: LucideIcon
     isActive?: boolean
     items?: {
+      id: string
       title: string
       url: string
     }[]
@@ -35,11 +37,11 @@ export function NavMain({
 }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
+      <SidebarGroupLabel className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Agents</SidebarGroupLabel>
       <SidebarMenu>
         {items && items.map((item) => (
           <Collapsible
-            key={item.title}
+            key={item.id}
             asChild
             defaultOpen={item.isActive}
             className="group/collapsible"
@@ -57,7 +59,7 @@ export function NavMain({
                   <CollapsibleContent>
                     <SidebarMenuSub>
                       {item.items.map((subItem) => (
-                        <SidebarMenuSubItem key={subItem.title}>
+                        <SidebarMenuSubItem key={subItem.id}>
                           <SidebarMenuSubButton asChild>
                             <Link href={subItem.url}>
                               <span>{subItem.title}</span>

@@ -28,10 +28,10 @@ type ModelFormValues = Omit<z.infer<typeof modelFormSchema>, 'id' | 'created_at'
 
 export async function createModel(data: ModelFormValues, userId: string) {
     const supabase = createClient()
-    
+
     // First validate the data
     const validatedData = modelFormSchema.omit({ id: true, created_at: true, created_by: true }).parse(data);
-    
+
     const { error } = await supabase
         .from('assistant')
         .insert({
@@ -48,16 +48,16 @@ export async function createModel(data: ModelFormValues, userId: string) {
         console.log(error)
         throw error
     }
-    
+
     return { success: true }
 }
 
 export async function updateModel(modelId: number, data: ModelFormValues, userId: string) {
     const supabase = createClient()
-    
+
     // First validate the data
     const validatedData = modelFormSchema.omit({ id: true, created_at: true, created_by: true }).parse(data);
-    
+
     const { error } = await supabase
         .from('assistant')
         .update({
@@ -75,13 +75,13 @@ export async function updateModel(modelId: number, data: ModelFormValues, userId
         console.log(error)
         throw error
     }
-    
+
     return { success: true }
 }
 
 export async function deleteModel(modelId: number, userId: string) {
     const supabase = createClient()
-    
+
     const { error } = await supabase
         .from('assistant')
         .delete()
@@ -92,32 +92,49 @@ export async function deleteModel(modelId: number, userId: string) {
         console.log(error)
         throw error
     }
-    
+
     return { success: true }
 }
 
 export async function getModels(userId: string) {
     const supabase = createClient()
-    
+
     const { data, error } = await supabase
         .from('assistant')
-        .select('*')
+        .select(`
+            *,
+            application:app_id (
+                fields
+            )
+        `)
         .order('created_at', { ascending: false })
-
+    
     if (error) {
         console.log(error)
         throw error
     }
-    
-    return data
+
+    // Transform the data to include fields directly in the model
+    const transformedData = data.map(model => ({
+        ...model,
+        fields: model.application?.fields || [],
+        application: undefined // Remove the nested application object
+    }));
+
+    return transformedData
 }
 
 export async function getModel(modelId: number, userId: string) {
     const supabase = createClient()
-    
+
     const { data, error } = await supabase
         .from('assistant')
-        .select('*')
+        .select(`
+            *,
+            application:app_id (
+                fields
+            )
+        `)
         .eq('id', modelId)
         .eq('created_by', userId) // Ensure user owns the model
         .single()
@@ -126,13 +143,20 @@ export async function getModel(modelId: number, userId: string) {
         console.log(error)
         throw error
     }
-    
-    return data
+
+    // Transform the data to include fields directly in the model
+    const transformedData = {
+        ...data,
+        fields: data.application?.fields || [],
+        application: undefined // Remove the nested application object
+    };
+
+    return transformedData
 }
 
 export async function getApplications() {
     const supabase = createClient()
-    
+
     const { data, error } = await supabase
         .from('application')
         .select('*')
@@ -142,6 +166,6 @@ export async function getApplications() {
         console.log(error)
         throw error
     }
-    
+
     return data
 }

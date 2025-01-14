@@ -2,10 +2,10 @@
 
 import * as React from "react"
 import { AudioWaveform, BookOpen, Bot, Clock, Command, Frame, GalleryVerticalEnd, Map, PieChart, Settings2, SquareTerminal, StoreIcon, Text, Sparkles, Brain, Code2, History, Star, Boxes, LucideIcon, Home } from 'lucide-react'
+import { createClient } from "@/utils/supabase/client"
 
 import { NavMain } from "@/components/sidebar/nav-main"
 import { NavUser } from "@/components/sidebar/nav-user"
-import { TeamSwitcher } from "@/components/sidebar/team-switcher"
 import {
   Sidebar,
   SidebarContent,
@@ -14,16 +14,15 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { getUserWorkspaces } from "@/utils/supabase/actions/workspace/workspace"
 import { getUserChats } from "@/utils/supabase/actions/user/user_chat"
 import { getUserAssignedModels } from "@/utils/supabase/actions/user/assignedModels"
 import { useEffect, useState } from "react"
-import { Workspace } from "@/utils/supabase/actions/workspace/workspace"
 import { Separator } from "../ui/separator"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "@/components/ui/sidebar"
 
 interface NavItem {
+  id: string;
   title: string;
   url: string;
   icon: LucideIcon;
@@ -42,8 +41,16 @@ interface SerializedUser {
   };
 }
 
+interface AssignedModel {
+  id: number;
+  name: string;
+  assistant_id: number;
+  assistant_name: string;
+}
+
 const navMainData: NavItem[] = [
   {
+    id: "recent-chats",
     title: "Recent Chats",
     url: "#",
     icon: Clock,
@@ -52,15 +59,25 @@ const navMainData: NavItem[] = [
     items: [],
   },
   {
+    id: "favorite-models",
+    title: "Favorite Models",
+    url: "",
+    icon: Star,
+    isActive: false,
+    description: "Your favorite AI models",
+    items: []
+  },
+  {
+    id: "available-models",
     title: "Available Models",
     url: "",
     icon: Brain,
     isActive: true,
     description: "View available models",
-    items: [
-    ]
+    items: []
   },
   {
+    id: "explore-models",
     title: "Explore Models",
     url: "/protected/models/explore-models",
     icon: Boxes,
@@ -68,17 +85,22 @@ const navMainData: NavItem[] = [
   },
 ]
 
+// Custom events
+const MODEL_FAVORITED_EVENT = 'modelFavorited'
+const MODEL_UNFAVORITED_EVENT = 'modelUnfavorited'
+
 export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: SerializedUser }) {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(true)
   const [recentChats, setRecentChats] = useState<any[]>([])
   const [assignedModels, setAssignedModels] = useState<any[]>([])
+  const [favoriteModels, setFavoriteModels] = useState<any[]>([])
   const { state } = useSidebar()
 
   // Transform recent chats into nav items
   const navItems = [...navMainData]
   if (recentChats.length) {
     navItems[0].items = recentChats.map(chat => ({
+      id: chat.id,
       title: chat.heading,
       url: `/protected/models/${chat.model_id}?chatId=${chat.id}`,
       icon: Brain,
@@ -86,11 +108,23 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
     }))
   }
 
+  // Add favorite models to the Favorite Models section
+  if (favoriteModels.length) {
+    navItems[1].items = favoriteModels.map((model: AssignedModel) => ({
+      id: model.id.toString(),
+      title: model.name,
+      url: `/protected/models/${model.id}`,
+      icon: Star,
+      description: `Use ${model.name}`
+    }))
+  }
+
   // Add assigned models to the Available Models section
   if (assignedModels.length) {
-    navItems[1].items = assignedModels.map(model => ({
-      title: model.assistant_name,
-      url: `/protected/models/${model.assistant_id}`,
+    navItems[2].items = assignedModels.map(model => ({
+      id: model.id.toString(),
+      title: model.name,
+      url: `/protected/models/${model.id}`,
       icon: Brain,
       description: `Use ${model.assistant_name}`
     }))
@@ -99,19 +133,32 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [workspacesData, chatsData, modelsData] = await Promise.all([
-          getUserWorkspaces(user.id),
+        const [chatsData, modelsData] = await Promise.all([
           getUserChats(user.id),
           getUserAssignedModels(user.id)
         ])
-        setWorkspaces(workspacesData)
+
+        // Get user data to access fav_models
+        const supabase = createClient();
+        const { data: userData } = await supabase
+          .from('user')
+          .select('fav_models')
+          .eq('id', user.id)
+          .single();
+
+        // Filter assigned models to get favorite models
+        const favModels = modelsData?.data?.filter(model => 
+          userData?.fav_models?.includes(model.id)
+        ) || [];
+
         setRecentChats(chatsData || [])
         setAssignedModels(modelsData?.data || [])
+        setFavoriteModels(favModels)
       } catch (error) {
         console.error('Error loading data:', error)
-        setWorkspaces([])
         setRecentChats([])
         setAssignedModels([])
+        setFavoriteModels([])
       } finally {
         setLoading(false)
       }
@@ -119,27 +166,26 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
 
     loadData()
 
-    // Add event listener for model assignment
-    const handleModelAssigned = (event: CustomEvent) => {
-      const newModel = event.detail;
-      // Immediately update the UI with the new model
-      setAssignedModels(prevModels => {
-        // Check if model already exists
-        const exists = prevModels.some(model => model.assistant_id === newModel.assistant_id);
-        if (!exists) {
-          return [...prevModels, newModel];
-        }
-        return prevModels;
-      });
+    // Add event listener for model favorited/unfavorited
+    const handleModelFavorited = async () => {
+      try {
+        const [modelsData, userData] = await Promise.all([
+          getUserAssignedModels(user.id),
+          createClient()
+            .from('user')
+            .select('fav_models')
+            .eq('id', user.id)
+            .single()
+        ]);
 
-      // Also refresh from the server to ensure consistency
-      getUserAssignedModels(user.id).then(modelsData => {
-        if (modelsData?.data) {
-          setAssignedModels(modelsData.data);
-        }
-      }).catch(error => {
-        console.error('Error refreshing assigned models:', error);
-      });
+        const favModels = modelsData?.data?.filter(model => 
+          userData.data?.fav_models?.includes(model.id)
+        ) || [];
+
+        setFavoriteModels(favModels);
+      } catch (error) {
+        console.error('Error refreshing favorite models:', error);
+      }
     };
 
     // Add event listener for new chats
@@ -159,13 +205,16 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
       });
     };
 
-    window.addEventListener('modelAssigned', handleModelAssigned as EventListener);
+    // Add event listeners
     window.addEventListener('chatCreated', handleChatCreated as EventListener);
+    window.addEventListener(MODEL_FAVORITED_EVENT, handleModelFavorited);
+    window.addEventListener(MODEL_UNFAVORITED_EVENT, handleModelFavorited);
 
     // Cleanup event listeners
     return () => {
-      window.removeEventListener('modelAssigned', handleModelAssigned as EventListener);
       window.removeEventListener('chatCreated', handleChatCreated as EventListener);
+      window.removeEventListener(MODEL_FAVORITED_EVENT, handleModelFavorited);
+      window.removeEventListener(MODEL_UNFAVORITED_EVENT, handleModelFavorited);
     }
   }, [user.id])
 
@@ -188,13 +237,6 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
         </div>
       </div>
       <Separator className="my-4" />
-      <SidebarGroupLabel className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        Workspaces
-      </SidebarGroupLabel>
-
-      <SidebarHeader className="px-2">
-        <TeamSwitcher teams={workspaces} loading={loading} />
-      </SidebarHeader>
 
       <SidebarContent className="px-2">
         <NavMain items={navItems} />
@@ -207,4 +249,3 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
     </Sidebar>
   )
 }
-

@@ -15,6 +15,49 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { addUserConnection } from "@/utils/supabase/actions/user/connections";
 import { assignModelToUser } from "@/utils/supabase/actions/user/assignedModels";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+
+// Step form schema
+const modelConfigSchema = z.object({
+    // Step 1: Basic Configuration
+    basic: z.object({
+        override_name: z.string().min(2, "Name must be at least 2 characters").optional(),
+        override_description: z.string().optional().or(z.string().min(10, "Description must be at least 10 characters")),
+    }),
+    // Step 2: Authentication (if required)
+    auth: z.object({
+        config_keys: z.record(z.string(), z.string()).optional(),
+    }),
+    // Step 3: Advanced Settings
+    advanced: z.object({
+        override_instructions: z.string().optional(),
+        permission_scope: z.enum(["public", "private", "team"]).default("private"),
+    }),
+});
+
+type ModelConfigValues = z.infer<typeof modelConfigSchema>;
+
+// Step form default values
+const defaultModelConfig: Partial<ModelConfigValues> = {
+    basic: {
+        override_name: "",
+        override_description: "",
+    },
+    auth: {
+        config_keys: {},
+    },
+    advanced: {
+        override_instructions: "",
+        permission_scope: "private",
+    },
+};
 
 // Predefined icons - same as admin page
 const availableIcons: { id: string; icon: any; label: string }[] = [
@@ -52,6 +95,7 @@ interface Model {
     created_by: string;
     created_at: string;
     app_id: number;
+    fields?: string[];
 }
 
 const MotionCard = motion(Card);
@@ -83,17 +127,10 @@ const ModelCard = ({ model }: { model: Model }) => {
     const IconComponent = availableIcons.find(i => i.id === model.icon)?.icon || Bot;
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
-    const [showConnectionDialog, setShowConnectionDialog] = useState(false);
-    const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-    const [connectionKeys, setConnectionKeys] = useState("");
+    const [showConfigForm, setShowConfigForm] = useState(false);
     const { toast } = useToast();
 
-    const handleGetModel = async () => {
-        if (model.is_auth) {
-            setShowConnectionDialog(true);
-            return;
-        }
-
+    const handleConfigSubmit = async (data: ModelConfigValues) => {
         setIsLoading(true);
         try {
             const supabase = createClient();
@@ -103,117 +140,50 @@ const ModelCard = ({ model }: { model: Model }) => {
                 throw new Error("User not authenticated");
             }
 
-            // Assign model to user
-            const { error } = await assignModelToUser(
+            // Then assign model to user with additional configuration
+            const { data: assignedModel, error } = await assignModelToUser(
                 user.id,
                 model.app_id,
-                model.name,
-                model.id
+                data.basic?.override_name || model.name,
+                model.id,
+                data.basic?.override_description,
+                data.advanced?.override_instructions
             );
+            // If auth is required and config keys are provided, save them first
+            if (model.is_auth && data.auth?.config_keys) {
+                const { error: connectionError } = await addUserConnection(
+                    user.id,
+                    model.app_id,
+                    JSON.stringify(data.auth.config_keys),
+                    assignedModel.id
+                );
+
+                if (connectionError) throw connectionError;
+            }
+
 
             if (error) throw error;
 
             toast({
                 title: "Success",
-                description: "Model added successfully",
+                description: "Model configured and added successfully",
             });
 
             // Dispatch custom event with full model data
             const event = new CustomEvent('modelAssigned', {
                 detail: {
                     assistant_id: model.id,
-                    assistant_name: model.name,
+                    assistant_name: data.basic?.override_name || model.name,
                     app_id: model.app_id
                 }
             });
             window.dispatchEvent(event);
 
+            setShowConfigForm(false);
         } catch (error: any) {
             toast({
                 title: "Error",
-                description: error.message || "Failed to add model",
-                variant: "destructive",
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleConnect = async () => {
-        if (!connectionKeys.trim()) {
-            toast({
-                title: "Error",
-                description: "Please enter your connection keys",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        setIsLoading(true);
-        try {
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                throw new Error("User not authenticated");
-            }
-
-            // Parse the connection keys
-            const keyPairs = connectionKeys.split('\n')
-                .map(line => line.trim())
-                .filter(line => line)
-                .reduce((acc, line) => {
-                    const [key, value] = line.split('=').map(s => s.trim());
-                    if (key && value) {
-                        acc[key] = value;
-                    }
-                    return acc;
-                }, {} as Record<string, string>);
-
-            if (Object.keys(keyPairs).length === 0) {
-                throw new Error("Invalid connection keys format");
-            }
-
-            // First save the connection
-            const { error: connectionError } = await addUserConnection(
-                user.id,
-                model.app_id,
-                JSON.stringify(keyPairs)
-            );
-
-            if (connectionError) throw connectionError;
-
-            // Then assign the model
-            const { error: assignError } = await assignModelToUser(
-                user.id,
-                model.app_id,
-                model.name,
-                model.id
-            );
-
-            if (assignError) throw assignError;
-
-            toast({
-                title: "Success",
-                description: "Model connected and added successfully",
-            });
-
-            // Dispatch custom event with full model data
-            const event = new CustomEvent('modelAssigned', {
-                detail: {
-                    assistant_id: model.id,
-                    assistant_name: model.name,
-                    app_id: model.app_id
-                }
-            });
-            window.dispatchEvent(event);
-
-            setConnectionKeys("");
-            setShowConnectionDialog(false);
-        } catch (error: any) {
-            toast({
-                title: "Error",
-                description: error.message || "Failed to connect model",
+                description: error.message || "Failed to configure model",
                 variant: "destructive",
             });
         } finally {
@@ -223,12 +193,12 @@ const ModelCard = ({ model }: { model: Model }) => {
 
     return (
         <>
-            <AlertDialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+            <AlertDialog open={showConfigForm} onOpenChange={setShowConfigForm}>
                 <AlertDialogTrigger asChild>
                     <MotionCard
                         variants={item}
                         layout
-                        className="group relative overflow-hidden bg-background hover:scale-[1.02] hover:shadow-xl transition-all duration-300 ease-out cursor-pointer "
+                        className="group relative overflow-hidden bg-background hover:scale-[1.02] hover:shadow-xl transition-all duration-300 ease-out cursor-pointer"
                         whileHover={{
                             y: -5,
                             transition: { type: "spring", stiffness: 300, damping: 20 }
@@ -293,7 +263,7 @@ const ModelCard = ({ model }: { model: Model }) => {
                             {/* Metadata Section */}
                             <motion.div
                                 layout
-                                className="mt-4 pt-4 -t flex items-center justify-between text-xs text-muted-foreground transition-colors duration-300"
+                                className="mt-4 pt-4 border-t flex items-center justify-between text-xs text-muted-foreground transition-colors duration-300"
                             >
                                 <div className="flex items-center gap-4">
                                     {/* Creation Date */}
@@ -328,7 +298,7 @@ const ModelCard = ({ model }: { model: Model }) => {
                         </div>
                     </MotionCard>
                 </AlertDialogTrigger>
-                <AlertDialogContent className="sm:max-w-[500px]">
+                <AlertDialogContent className="sm:max-w-[600px]">
                     <AlertDialogHeader>
                         <AlertDialogTitle>
                             <div className="flex items-center gap-3">
@@ -342,129 +312,280 @@ const ModelCard = ({ model }: { model: Model }) => {
                             </div>
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            {model.description}
+                            Configure your model settings below
                         </AlertDialogDescription>
-                        <div className="space-y-4 py-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <div className="text-sm font-medium">API Status</div>
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                        {model.is_auth ? (
-                                            <Key className="h-4 w-4 text-yellow-500" />
-                                        ) : (
-                                            <Check className="h-4 w-4 text-green-500" />
-                                        )}
-                                        <span className="text-sm">{model.is_auth ? "Auth Required" : "Public API"}</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-sm font-medium">Created On</div>
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                        <Clock className="h-4 w-4 text-muted-foreground" />
-                                        <span className="text-sm">{new Date(model.created_at).toLocaleDateString()}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="flex gap-2 sm:gap-0">
-                        <Button
-                            onClick={() => setShowDetailsDialog(false)}
-                            className="flex-1 sm:flex-none"
-                            variant="outline"
-                        >
-                            Close
-                        </Button>
-                        <Button
-                            onClick={handleGetModel}
-                            disabled={isLoading}
-                            className="flex-1 sm:flex-none"
-                        >
-                            {isLoading ? (
-                                <>
-                                    <span className="mr-2">Adding...</span>
-                                    <motion.div
-                                        animate={{ rotate: 360 }}
-                                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                    >
-                                        <Bot className="h-4 w-4" />
-                                    </motion.div>
-                                </>
-                            ) : (
-                                <>
-                                    Get Model
-                                    <Bot className="ml-2 h-4 w-4" />
-                                </>
-                            )}
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            {/* Connection Dialog for Auth Required Models */}
-            <AlertDialog open={showConnectionDialog} onOpenChange={setShowConnectionDialog}>
-                <AlertDialogContent className="sm:max-w-[500px]">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Connect to {model.name}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This model requires authentication. Please enter your connection keys below.
-                        </AlertDialogDescription>
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-3">
-                                <div>
-                                    <div className="text-sm font-medium mb-1.5">Connection Keys</div>
-                                    <div className="text-xs text-muted-foreground mb-2">
-                                        Enter each key-value pair on a new line in the format: key=value
-                                        <br />
-                                        Example:
-                                        <code className="block mt-1 p-2 bg-muted rounded-md">
-                                            baseId=baseid123<br />
-                                            tableId=table123
-                                        </code>
-                                    </div>
-                                    <textarea
-                                        className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                                        placeholder="Enter your connection keys..."
-                                        value={connectionKeys}
-                                        onChange={(e) => setConnectionKeys(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowConnectionDialog(false)}
-                            disabled={isLoading}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleConnect}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <span className="mr-2">Connecting...</span>
-                                    <motion.div
-                                        animate={{ rotate: 360 }}
-                                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                    >
-                                        <Key className="h-4 w-4" />
-                                    </motion.div>
-                                </>
-                            ) : (
-                                <>
-                                    Connect
-                                    <Key className="ml-2 h-4 w-4" />
-                                </>
-                            )}
-                        </Button>
-                    </AlertDialogFooter>
+                    <div className="py-6">
+                        <ModelConfigForm
+                            model={model}
+                            onSubmit={handleConfigSubmit}
+                            onCancel={() => setShowConfigForm(false)}
+                        />
+                    </div>
                 </AlertDialogContent>
             </AlertDialog>
         </>
+    );
+};
+
+const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit: (data: ModelConfigValues) => void; onCancel: () => void }) => {
+    const [step, setStep] = useState(1);
+    const totalSteps = model.is_auth ? 3 : 2;
+    const form = useForm<ModelConfigValues>({
+        resolver: zodResolver(modelConfigSchema),
+        defaultValues: defaultModelConfig,
+    });
+
+    const onFormSubmit = async (data: ModelConfigValues) => {
+        onSubmit(data);
+    };
+
+    // Prevent form submission on enter key
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && step !== totalSteps) {
+            e.preventDefault();
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            {/* Progress Bar */}
+            <div className="relative">
+                <div className="absolute left-0 top-4 h-0.5 w-full bg-muted">
+                    <div
+                        className="absolute h-full bg-primary transition-all duration-300"
+                        style={{ width: `${((step - 1) / (totalSteps - 1)) * 100}%` }}
+                    />
+                </div>
+                <div className="relative flex justify-between">
+                    {[...Array(totalSteps)].map((_, index) => (
+                        <div key={index} className="flex flex-col items-center">
+                            <div
+                                className={cn(
+                                    "z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-300",
+                                    step > index + 1
+                                        ? "border-primary bg-primary text-primary-foreground"
+                                        : step === index + 1
+                                            ? "border-primary bg-background text-primary"
+                                            : "border-muted bg-muted text-muted-foreground"
+                                )}
+                            >
+                                {step > index + 1 ? (
+                                    <Check className="h-4 w-4" />
+                                ) : (
+                                    <span>{index + 1}</span>
+                                )}
+                            </div>
+                            <span className="mt-2 text-sm font-medium">
+                                {index === 0 ? "Basic" : index === 1 ? (model.is_auth ? "Auth" : "Advanced") : "Advanced"}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onFormSubmit)} onKeyDown={handleKeyDown} className="space-y-6">
+                    {/* Step 1: Basic Configuration */}
+                    {step === 1 && (
+                        <motion.div
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-4"
+                        >
+                            <div className="text-center">
+                                <h2 className="text-lg font-semibold">Basic Configuration</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    Customize the basic settings for your model
+                                </p>
+                            </div>
+                            <FormField
+                                control={form.control}
+                                name="basic.override_name"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Override Name (Optional)</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder={model.name} {...field} />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Customize the display name for this model
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="basic.override_description"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Override Description (Optional)</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                placeholder={model.description}
+                                                className="min-h-[100px]"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Customize the description for this model
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </motion.div>
+                    )}
+
+                    {/* Step 2: Authentication (if required) */}
+                    {step === 2 && model.is_auth && (
+                        <motion.div
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-4"
+                        >
+                            <div className="text-center">
+                                <h2 className="text-lg font-semibold">Authentication Required</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    Enter your API keys and configuration
+                                </p>
+                            </div>
+                            <div className="rounded-lg border p-4 space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="auth.config_keys"
+                                    render={({ field }) => (
+                                        <FormItem className="space-y-4">
+                                            <FormLabel>Configuration Keys</FormLabel>
+                                            <FormControl>
+                                                <div className="space-y-3">
+                                                    {model.fields?.map((fieldName, index) => (
+                                                        <div key={index} className="space-y-2">
+                                                            <Label className="text-sm font-medium">{fieldName}</Label>
+                                                            <Input
+                                                                type="text"
+                                                                placeholder={`Enter your ${fieldName}`}
+                                                                value={field.value?.[fieldName] || ''}
+                                                                onChange={(e) => {
+                                                                    const newValue = { ...field.value };
+                                                                    newValue[fieldName] = e.target.value;
+                                                                    field.onChange(newValue);
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </FormControl>
+                                            <FormDescription>
+                                                Enter the required configuration values for each field
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* Step 3 (or 2 if no auth): Advanced Settings */}
+                    {step === (model.is_auth ? 3 : 2) && (
+                        <motion.div
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="space-y-4"
+                        >
+                            <div className="text-center">
+                                <h2 className="text-lg font-semibold">Advanced Settings</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    Configure advanced options for your model
+                                </p>
+                            </div>
+                            <FormField
+                                control={form.control}
+                                name="advanced.override_instructions"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Override Instructions (Optional)</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                placeholder="Enter custom instructions for the model..."
+                                                className="min-h-[100px]"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Provide custom instructions for how the model should behave
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="advanced.permission_scope"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Permission Scope</FormLabel>
+                                        <Select
+                                            value={field.value}
+                                            onValueChange={field.onChange}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a permission scope" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="private">Private</SelectItem>
+                                                <SelectItem value="team">Team</SelectItem>
+                                                <SelectItem value="public">Public</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormDescription>
+                                            Control who can access this model
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </motion.div>
+                    )}
+
+                    {/* Navigation Buttons */}
+                    <div className="flex justify-between pt-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (step === 1) {
+                                    onCancel();
+                                } else {
+                                    setStep(step - 1);
+                                }
+                            }}
+                        >
+                            {step === 1 ? "Cancel" : "Previous"}
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (step === totalSteps) {
+                                    form.handleSubmit(onFormSubmit)(e);
+                                } else {
+                                    setStep(step + 1);
+                                }
+                            }}
+                        >
+                            {step === totalSteps ? "Submit" : "Next"}
+                        </Button>
+                    </div>
+                </form>
+            </Form>
+        </div>
     );
 };
 
@@ -621,6 +742,12 @@ export default function ExploreModels() {
                                 key={category.id}
                                 value={category.id}
                                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                                onClick={() => {
+                                    if (category.id === "all") {
+                                        setSearchTerm("");
+                                        setSelectedCategory("all")
+                                    }
+                                }}
                             >
                                 {category.name}
                             </TabsTrigger>

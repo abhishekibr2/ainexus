@@ -10,7 +10,7 @@ export interface ChatMessage {
 
 export async function createUserChat(userId: string, modelId: number, firstMessage: string, assistantMessage: ChatMessage) {
     const supabase = createClient()
-    
+    console.log({ modelId })
     try {
         const chat: ChatMessage[] = [
             {
@@ -42,7 +42,7 @@ export async function createUserChat(userId: string, modelId: number, firstMessa
 
 export async function updateUserChat(chatId: number, newMessages: ChatMessage[]) {
     const supabase = createClient()
-    
+
     try {
         // First get the current chat
         const { data: chatData, error: fetchError } = await supabase
@@ -74,7 +74,7 @@ export async function updateUserChat(chatId: number, newMessages: ChatMessage[])
 
 export async function getUserChats(userId: string) {
     const supabase = createClient()
-    
+
     try {
         const { data, error } = await supabase
             .from('user_chat')
@@ -92,7 +92,7 @@ export async function getUserChats(userId: string) {
 
 export async function getUserChatById(chatId: number) {
     const supabase = createClient()
-    
+
     try {
         const { data, error } = await supabase
             .from('user_chat')
@@ -110,7 +110,7 @@ export async function getUserChatById(chatId: number) {
 
 export async function getUserChatsByModel(userId: string, modelId: number) {
     const supabase = createClient()
-    
+
     try {
         const { data, error } = await supabase
             .from('user_chat')

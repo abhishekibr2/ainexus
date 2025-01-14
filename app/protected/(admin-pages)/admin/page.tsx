@@ -1,9 +1,9 @@
-'use client';
-
+"use client";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
     Brain,
     Bot,
@@ -20,7 +20,6 @@ import {
     type LucideIcon,
     Plus,
     Copy,
-    Badge,
     Wand2,
     X,
     Loader2,
@@ -63,6 +62,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import Editor from "@monaco-editor/react";
 
 // Predefined icons
 const availableIcons: { id: string; icon: LucideIcon; label: string }[] = [
@@ -198,12 +198,14 @@ export default function AdminPage() {
             app_id: 0,
         });
         const [isDialogOpen, setIsDialogOpen] = useState(false);
-        const [appOptions, setAppOptions] = useState<Array<{ id: number; name: string; description: string; auth_required: boolean }>>([]);
+        const [appOptions, setAppOptions] = useState<Array<{ id: number; name: string; description: string; auth_required: boolean; fields: string[] }>>([]);
         const [isLoadingApps, setIsLoadingApps] = useState(true);
 
         useEffect(() => {
             const loadApplications = async () => {
+                if (!isDialogOpen) return; // Only load when dialog is open
                 try {
+                    setIsLoadingApps(true);
                     const apps = await getApplications();
                     setAppOptions(apps);
                     if (apps.length > 0) {
@@ -222,7 +224,7 @@ export default function AdminPage() {
             };
 
             loadApplications();
-        }, []);
+        }, [isDialogOpen]);
 
         const resetForm = () => {
             setNewModel({
@@ -257,8 +259,8 @@ export default function AdminPage() {
                     title: "Success",
                     description: "Model created successfully!",
                 });
-                setIsDialogOpen(false);
                 resetForm();
+                setIsDialogOpen(false);
             } catch (error: any) {
                 console.error('Error creating model:', error);
                 toast({
@@ -277,19 +279,33 @@ export default function AdminPage() {
         };
 
         return (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild onClick={() => setIsDialogOpen(true)}>
-                    <Button className="mb-4">
+            <Dialog
+                open={isDialogOpen}
+                onOpenChange={(open) => {
+                    if (isSubmitting) return; // Prevent closing during submission
+                    if (!open) resetForm();
+                    setIsDialogOpen(open);
+                }}
+            >
+                <DialogTrigger asChild>
+                    <Button className="mb-4" onClick={() => setIsDialogOpen(true)}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add New Model
                     </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[800px] p-0" onInteractOutside={(e) => {
-                    // Prevent closing when clicking outside if submitting
-                    if (isSubmitting) {
-                        e.preventDefault();
-                    }
-                }}>
+                <DialogContent
+                    className="sm:max-w-[800px] p-0"
+                    onPointerDownOutside={(e) => {
+                        if (isSubmitting) {
+                            e.preventDefault();
+                        }
+                    }}
+                    onEscapeKeyDown={(e) => {
+                        if (isSubmitting) {
+                            e.preventDefault();
+                        }
+                    }}
+                >
                     <div className="grid grid-cols-5 h-[800px]">
                         {/* Left Panel - Basic Info */}
                         <div className="col-span-2 border-r p-6 space-y-6 bg-muted/10">
@@ -408,6 +424,20 @@ export default function AdminPage() {
                                     )}
                                 </div>
 
+                                {/* Display Fields */}
+                                {appOptions.find(app => app.id === newModel.app_id)?.fields && (
+                                    <div className="space-y-2">
+                                        <Label>Required Fields Will be</Label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
+                                                <Badge key={index} className="text-xs">
+                                                    {field}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-0.5">
                                         <Label htmlFor="is_auth">Authentication Required</Label>
@@ -429,18 +459,28 @@ export default function AdminPage() {
 
                                 <div className="space-y-2">
                                     <Label htmlFor="code">Model Code</Label>
-                                    <Textarea
-                                        id="code"
-                                        placeholder="Enter your model's code here..."
-                                        className="h-80 font-mono text-sm resize-none"
-                                        value={newModel.code}
-                                        onChange={(e) => {
-                                            setNewModel({
-                                                ...newModel,
-                                                code: e.target.value,
-                                            });
-                                        }}
-                                    />
+                                    <div className="border rounded-md">
+                                        <Editor
+                                            height="320px"
+                                            defaultLanguage="javascript"
+                                            theme="vs-dark"
+                                            value={newModel.code}
+                                            onChange={(value) => {
+                                                setNewModel({
+                                                    ...newModel,
+                                                    code: value || "",
+                                                });
+                                            }}
+                                            options={{
+                                                minimap: { enabled: false },
+                                                fontSize: 14,
+                                                lineNumbers: "on",
+                                                scrollBeyondLastLine: false,
+                                                automaticLayout: true,
+                                                tabSize: 2,
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -479,7 +519,7 @@ export default function AdminPage() {
                         </div>
                     </div>
                 </DialogContent>
-            </Dialog>
+            </Dialog >
         );
     };
 
@@ -609,12 +649,14 @@ export default function AdminPage() {
             app_id: editingModel?.app_id || 0,
         });
         const [isEditSubmitting, setIsEditSubmitting] = useState(false);
-        const [appOptions, setAppOptions] = useState<Array<{ id: number; name: string; description: string; auth_required: boolean }>>([]);
+        const [appOptions, setAppOptions] = useState<Array<{ id: number; name: string; description: string; auth_required: boolean; fields: string[] }>>([]);
         const [isLoadingApps, setIsLoadingApps] = useState(true);
 
         useEffect(() => {
             const loadApplications = async () => {
+                if (!showEditDialog) return; // Only load when dialog is open
                 try {
+                    setIsLoadingApps(true);
                     const apps = await getApplications();
                     setAppOptions(apps);
                 } catch (error) {
@@ -630,7 +672,7 @@ export default function AdminPage() {
             };
 
             loadApplications();
-        }, []);
+        }, [showEditDialog]);
 
         useEffect(() => {
             if (editingModel) {
@@ -695,11 +737,37 @@ export default function AdminPage() {
         };
 
         return (
-            <Dialog open={showEditDialog} onOpenChange={(open) => {
-                setShowEditDialog(open);
-                if (!open) setEditingModel(null);
-            }}>
-                <DialogContent className="sm:max-w-[800px] p-0">
+            <Dialog
+                open={showEditDialog}
+                onOpenChange={(open) => {
+                    if (isEditSubmitting) return; // Prevent closing during submission
+                    if (!open) {
+                        setEditingModel(null);
+                        setModelData({
+                            name: "",
+                            description: "",
+                            icon: availableIcons[0].id,
+                            is_auth: false,
+                            code: "",
+                            app_id: 0,
+                        });
+                    }
+                    setShowEditDialog(open);
+                }}
+            >
+                <DialogContent
+                    className="sm:max-w-[800px] p-0"
+                    onPointerDownOutside={(e) => {
+                        if (isEditSubmitting) {
+                            e.preventDefault();
+                        }
+                    }}
+                    onEscapeKeyDown={(e) => {
+                        if (isEditSubmitting) {
+                            e.preventDefault();
+                        }
+                    }}
+                >
                     <div className="grid grid-cols-5 h-[800px]">
                         {/* Left Panel - Basic Info */}
                         <div className="col-span-2 border-r p-6 space-y-6 bg-muted/10">
@@ -812,6 +880,22 @@ export default function AdminPage() {
                                     )}
                                 </div>
 
+                                {/* Display Fields */}
+                                {appOptions.find(app => app.id === modelData.app_id)?.fields && (
+                                    <div className="space-y-2">
+                                        <Label>Required Fields</Label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
+                                                <div key={index} className="flex items-center p-2 border rounded-md bg-muted/10">
+                                                    <Badge className="text-xs">
+                                                        {field}
+                                                    </Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-0.5">
                                         <Label htmlFor="is_auth">Authentication Required</Label>
@@ -833,18 +917,28 @@ export default function AdminPage() {
 
                                 <div className="space-y-2">
                                     <Label htmlFor="code">Model Code</Label>
-                                    <Textarea
-                                        id="code"
-                                        placeholder="Enter your model's code here..."
-                                        className="h-80 font-mono text-sm resize-none"
-                                        value={modelData.code}
-                                        onChange={(e) => {
-                                            setModelData({
-                                                ...modelData,
-                                                code: e.target.value,
-                                            });
-                                        }}
-                                    />
+                                    <div className="border rounded-md">
+                                        <Editor
+                                            height="320px"
+                                            defaultLanguage="javascript"
+                                            theme="vs-dark"
+                                            value={modelData.code}
+                                            onChange={(value) => {
+                                                setModelData({
+                                                    ...modelData,
+                                                    code: value || "",
+                                                });
+                                            }}
+                                            options={{
+                                                minimap: { enabled: false },
+                                                fontSize: 14,
+                                                lineNumbers: "on",
+                                                scrollBeyondLastLine: false,
+                                                automaticLayout: true,
+                                                tabSize: 2,
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
