@@ -60,7 +60,7 @@ const navMainData: NavItem[] = [
   },
   {
     id: "favorite-models",
-    title: "Favorite Models",
+    title: "Favorite AI Agent",
     url: "",
     icon: Star,
     isActive: false,
@@ -69,7 +69,7 @@ const navMainData: NavItem[] = [
   },
   {
     id: "available-models",
-    title: "Available Models",
+    title: "Available AI Agent",
     url: "",
     icon: Brain,
     isActive: true,
@@ -78,7 +78,7 @@ const navMainData: NavItem[] = [
   },
   {
     id: "explore-models",
-    title: "Explore Models",
+    title: "Explore AI Agent",
     url: "/protected/models/explore-models",
     icon: Boxes,
     description: "Explore AI models"
