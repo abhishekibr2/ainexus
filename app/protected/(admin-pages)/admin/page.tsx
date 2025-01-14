@@ -425,7 +425,7 @@ export default function AdminPage() {
                                 </div>
 
                                 {/* Display Fields */}
-                                {appOptions.find(app => app.id === newModel.app_id)?.fields && (
+                                {appOptions.find(app => app.id === newModel.app_id)?.fields && newModel.is_auth && (
                                     <div className="space-y-2">
                                         <Label>Required Fields Will be</Label>
                                         <div className="flex flex-wrap gap-2">
@@ -881,16 +881,14 @@ export default function AdminPage() {
                                 </div>
 
                                 {/* Display Fields */}
-                                {appOptions.find(app => app.id === modelData.app_id)?.fields && (
+                                {appOptions.find(app => app.id === modelData.app_id)?.fields && modelData.is_auth && (
                                     <div className="space-y-2">
-                                        <Label>Required Fields</Label>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <Label>Required Fields Will be</Label>
+                                        <div className="flex flex-wrap gap-2">
                                             {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
-                                                <div key={index} className="flex items-center p-2 border rounded-md bg-muted/10">
-                                                    <Badge className="text-xs">
-                                                        {field}
-                                                    </Badge>
-                                                </div>
+                                                <Badge key={index} className="text-xs">
+                                                    {field}
+                                                </Badge>
                                             ))}
                                         </div>
                                     </div>

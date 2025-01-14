@@ -12,11 +12,11 @@ const modelFormSchema = z.object({
     }).max(50, {
         message: "Model name must not be longer than 50 characters.",
     }),
-    description: z.string().min(10, {
+    description: z.string().min(0, {
         message: "Description must be at least 10 characters.",
     }).max(500, {
         message: "Description must not be longer than 500 characters.",
-    }),
+    }).optional(),
     icon: z.string(),
     is_auth: z.boolean(),
     code: z.string().optional(),
@@ -36,7 +36,7 @@ export async function createModel(data: ModelFormValues, userId: string) {
         .from('assistant')
         .insert({
             name: validatedData.name,
-            description: validatedData.description,
+            description: validatedData.description || null,
             icon: validatedData.icon,
             is_auth: validatedData.is_auth,
             code: validatedData.code,
@@ -108,7 +108,7 @@ export async function getModels(userId: string) {
             )
         `)
         .order('created_at', { ascending: false })
-    
+
     if (error) {
         console.log(error)
         throw error
