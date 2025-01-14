@@ -4,11 +4,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { DatabaseIcon, CalendarIcon, WorkflowIcon, FileIcon, MenuIcon, HomeIcon, NotebookIcon, PlusCircle, Settings } from "lucide-react"
-import { getUserWorkspaces, Workspace } from "@/utils/supabase/actions/workspace/workspace"
+import { DatabaseIcon, CalendarIcon, WorkflowIcon, FileIcon, MenuIcon, HomeIcon, NotebookIcon, PlusCircle, Settings, Loader2 } from "lucide-react"
+import { getUserWorkspaces, Workspace, createWorkspace } from "@/utils/supabase/actions/workspace/workspace"
 import { createClient } from "@/utils/supabase/client"
 import { useEffect, useState } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/hooks/use-toast"
 
 const SkeletonCard = () => (
     <Card>
@@ -22,9 +26,18 @@ const SkeletonCard = () => (
     </Card>
 )
 
+// Custom events
+const WORKSPACE_CREATED_EVENT = 'workspaceCreated'
+
 export default function Component() {
     const [workspaces, setWorkspaces] = useState<Workspace[]>([])
     const [loading, setLoading] = useState(true)
+    const [isCreating, setIsCreating] = useState(false)
+    const [dialogOpen, setDialogOpen] = useState(false)
+    const [newWorkspace, setNewWorkspace] = useState({
+        name: "",
+        description: ""
+    })
 
     useEffect(() => {
         const loadWorkspaces = async () => {
@@ -46,6 +59,46 @@ export default function Component() {
         loadWorkspaces()
     }, [])
 
+    const handleCreateWorkspace = async () => {
+        if (!newWorkspace.name.trim()) {
+            toast({
+                title: "Workspace name is required",
+                variant: "destructive"
+            })
+            return
+        }
+
+        setIsCreating(true)
+        try {
+            const workspace = await createWorkspace(
+                newWorkspace.name,
+                newWorkspace.description || undefined
+            )
+            setWorkspaces(prev => [...prev, workspace])
+            
+            // Dispatch custom event to update sidebar
+            const event = new CustomEvent(WORKSPACE_CREATED_EVENT, {
+                detail: workspace
+            })
+            window.dispatchEvent(event)
+            
+            setDialogOpen(false)
+            setNewWorkspace({ name: "", description: "" })
+            toast({
+                title: "Workspace created successfully",
+                variant: "default"
+            })
+        } catch (error) {
+            console.error('Error creating workspace:', error)
+            toast({
+                title: "Failed to create workspace",
+                variant: "destructive"
+            })
+        } finally {
+            setIsCreating(false)
+        }
+    }
+
     const renderContent = () => {
         if (loading) {
             return (
@@ -65,10 +118,51 @@ export default function Component() {
                     </div>
                     <h3 className="text-lg font-semibold mb-2">No Workspaces Yet</h3>
                     <p className="text-muted-foreground mb-4">Create your first workspace to get started with organizing your projects.</p>
-                    <Button>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Create Workspace
-                    </Button>
+                    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Create Workspace
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Create New Workspace</DialogTitle>
+                                <DialogDescription>
+                                    Create a new workspace to organize your projects and collaborate with team members.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="name">Name</Label>
+                                    <Input
+                                        id="name"
+                                        placeholder="Enter workspace name"
+                                        value={newWorkspace.name}
+                                        onChange={(e) => setNewWorkspace(prev => ({ ...prev, name: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="description">Description</Label>
+                                    <Textarea
+                                        id="description"
+                                        placeholder="Enter workspace description"
+                                        value={newWorkspace.description}
+                                        onChange={(e) => setNewWorkspace(prev => ({ ...prev, description: e.target.value }))}
+                                    />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                                    Cancel
+                                </Button>
+                                <Button onClick={handleCreateWorkspace} disabled={isCreating}>
+                                    {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {isCreating ? "Creating..." : "Create Workspace"}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </div>
             )
         }
@@ -107,10 +201,51 @@ export default function Component() {
                             <p className="text-muted-foreground">Manage and collaborate on your projects in one place.</p>
                         </div>
                         {!loading && workspaces.length > 0 && (
-                            <Button>
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                New Workspace
-                            </Button>
+                            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button>
+                                        <PlusCircle className="mr-2 h-4 w-4" />
+                                        New Workspace
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Create New Workspace</DialogTitle>
+                                        <DialogDescription>
+                                            Create a new workspace to organize your projects and collaborate with team members.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4 py-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="name">Name</Label>
+                                            <Input
+                                                id="name"
+                                                placeholder="Enter workspace name"
+                                                value={newWorkspace.name}
+                                                onChange={(e) => setNewWorkspace(prev => ({ ...prev, name: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="description">Description</Label>
+                                            <Textarea
+                                                id="description"
+                                                placeholder="Enter workspace description"
+                                                value={newWorkspace.description}
+                                                onChange={(e) => setNewWorkspace(prev => ({ ...prev, description: e.target.value }))}
+                                            />
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                                            Cancel
+                                        </Button>
+                                        <Button onClick={handleCreateWorkspace} disabled={isCreating}>
+                                            {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            {isCreating ? "Creating..." : "Create Workspace"}
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
                         )}
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">

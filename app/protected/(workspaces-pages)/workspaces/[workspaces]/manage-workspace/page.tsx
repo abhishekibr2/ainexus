@@ -7,35 +7,50 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Users2, Settings2, Trash2 } from "lucide-react"
+import { ArrowLeft, Users2, Settings2, Trash2, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
-import { createClient } from "@/utils/supabase/client"
-import { Workspace } from "@/utils/supabase/actions/workspace/workspace"
-import { useRouter } from "next-nprogress-bar";
+import { Workspace, getWorkspaceById, updateWorkspaceDetails, deleteWorkspaceById } from "@/utils/supabase/actions/workspace/workspace"
+import { useRouter } from "next-nprogress-bar"
+import { toast } from "@/hooks/use-toast"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
+// Custom event for workspace updates
+const WORKSPACE_DELETED_EVENT = 'workspaceDeleted'
 
 export default function WorkspaceSettings({ params }: { params: Promise<{ workspaces: string }> }) {
     const resolvedParams = use(params)
     const [workspace, setWorkspace] = useState<Workspace | null>(null)
     const [loading, setLoading] = useState(true)
+    const [isSaving, setIsSaving] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [name, setName] = useState("")
+    const [description, setDescription] = useState("")
     const router = useRouter()
 
     useEffect(() => {
         const loadWorkspace = async () => {
             try {
-                const supabase = await createClient()
-                const { data: workspace, error } = await supabase
-                    .from('Workspaces')
-                    .select('*')
-                    .eq('id', resolvedParams.workspaces)
-                    .single()
-
-                if (error) throw error
+                const workspace = await getWorkspaceById(resolvedParams.workspaces)
                 setWorkspace(workspace)
+                setName(workspace.name)
+                setDescription(workspace.description || "")
             } catch (error) {
                 console.error('Error loading workspace:', error)
-                // Handle error - maybe redirect to 404 or show error message
+                toast({
+                    title: "Failed to load workspace",
+                    variant: "destructive"
+                })
             } finally {
                 setLoading(false)
             }
@@ -44,23 +59,52 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
         loadWorkspace()
     }, [resolvedParams.workspaces])
 
-    const handleDelete = async () => {
-        if (!confirm('Are you sure you want to delete this workspace? This action cannot be undone.')) {
-            return
-        }
-
+    const handleSaveChanges = async () => {
+        setIsSaving(true)
         try {
-            const supabase = await createClient()
-            const { error } = await supabase
-                .from('Workspaces')
-                .delete()
-                .eq('id', resolvedParams.workspaces)
+            const updatedWorkspace = await updateWorkspaceDetails(resolvedParams.workspaces, {
+                name,
+                description: description || undefined
+            })
+            setWorkspace(updatedWorkspace)
+            toast({
+                title: "Workspace updated successfully",
+                variant: "default"
+            })
+        } catch (error) {
+            console.error('Error updating workspace:', error)
+            toast({
+                title: "Failed to update workspace",
+                variant: "destructive"
+            })
+        } finally {
+            setIsSaving(false)
+        }
+    }
 
-            if (error) throw error
+    const handleDelete = async () => {
+        setIsDeleting(true)
+        try {
+            await deleteWorkspaceById(resolvedParams.workspaces)
+            
+            // Dispatch custom event to refresh workspaces in sidebar
+            const event = new CustomEvent(WORKSPACE_DELETED_EVENT, {
+                detail: { workspaceId: resolvedParams.workspaces }
+            })
+            window.dispatchEvent(event)
+            
+            toast({
+                title: "Workspace deleted successfully",
+                variant: "default"
+            })
             router.push('/protected/workspaces')
         } catch (error) {
             console.error('Error deleting workspace:', error)
-            // Handle error - show error message
+            toast({
+                title: "Failed to delete workspace",
+                variant: "destructive"
+            })
+            setIsDeleting(false)
         }
     }
 
@@ -96,7 +140,7 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" asChild>
-                        <Link href="/protected/workspaces">
+                        <Link href={`/protected/workspaces/${workspace.id}`}>
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>
@@ -129,7 +173,8 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
                                 <Label htmlFor="name">Name</Label>
                                 <Input
                                     id="name"
-                                    defaultValue={workspace.name}
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
                                     placeholder="Enter workspace name"
                                 />
                             </div>
@@ -137,12 +182,16 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
                                 <Label htmlFor="description">Description</Label>
                                 <Textarea
                                     id="description"
-                                    defaultValue={workspace.description || ''}
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
                                     placeholder="Enter workspace description"
                                     className="min-h-[100px]"
                                 />
                             </div>
-                            <Button>Save Changes</Button>
+                            <Button onClick={handleSaveChanges} disabled={isSaving}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {isSaving ? "Saving..." : "Save Changes"}
+                            </Button>
                         </CardContent>
                     </Card>
 
@@ -154,14 +203,34 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Button
-                                variant="destructive"
-                                onClick={handleDelete}
-                                className="flex items-center"
-                            >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Workspace
-                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" className="flex items-center">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete Workspace
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone. This will permanently delete your
+                                            workspace and remove all associated data.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={handleDelete}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            disabled={isDeleting}
+                                        >
+                                            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            {isDeleting ? "Deleting..." : "Delete Workspace"}
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -189,7 +258,6 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
                                     </Button>
                                 </div>
 
-                                {/* Member list will be implemented here */}
                                 <div className="text-sm text-muted-foreground">
                                     No members yet. Invite some team members to get started.
                                 </div>

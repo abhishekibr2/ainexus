@@ -4,7 +4,6 @@ import "./globals.css";
 import SidebarComponent from "@/components/sidebar/SidebarComponent";
 import { Toaster } from "@/components/ui/toaster";
 import TopLoader from "@/utils/TopLoader";
-import HolyLoader from "holy-loader";
 
 
 const defaultUrl = process.env.VERCEL_URL
@@ -30,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={geistSans.className} suppressHydrationWarning>
       <body className="bg-background text-foreground">
-        <HolyLoader />
+        <TopLoader />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

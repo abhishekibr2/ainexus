@@ -18,9 +18,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
+  SidebarGroupLabel,
+  SidebarHeader,
 } from "@/components/ui/sidebar"
 import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next-nprogress-bar";
+import { TeamSwitcher } from "@/components/sidebar/team-switcher"
+import { getUserWorkspaces, Workspace } from "@/utils/supabase/actions/workspace/workspace"
+import { useEffect, useState } from "react"
 
 
 interface SerializedUser {
@@ -36,6 +41,53 @@ interface SerializedUser {
 export function NavUser({ user }: { user: SerializedUser }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadWorkspaces = async () => {
+      try {
+        const workspacesData = await getUserWorkspaces(user.id)
+        setWorkspaces(workspacesData)
+      } catch (error) {
+        console.error('Error loading workspaces:', error)
+        setWorkspaces([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadWorkspaces()
+
+    // Add event listener for workspace creation
+    const handleWorkspaceCreated = (event: CustomEvent) => {
+      const newWorkspace = event.detail;
+      setWorkspaces(prevWorkspaces => [...prevWorkspaces, newWorkspace]);
+    };
+
+    // Add event listener for workspace deletion
+    const handleWorkspaceDeleted = (event: CustomEvent) => {
+      const { workspaceId } = event.detail;
+      setWorkspaces(prevWorkspaces =>
+        prevWorkspaces.filter(workspace => workspace.id.toString() !== workspaceId.toString())
+      );
+
+      getUserWorkspaces(user.id).then(workspacesData => {
+        setWorkspaces(workspacesData);
+      }).catch(error => {
+        console.error('Error refreshing workspaces:', error);
+      });
+    };
+
+    window.addEventListener('workspaceCreated', handleWorkspaceCreated as EventListener);
+    window.addEventListener('workspaceDeleted', handleWorkspaceDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener('workspaceCreated', handleWorkspaceCreated as EventListener);
+      window.removeEventListener('workspaceDeleted', handleWorkspaceDeleted as EventListener);
+    }
+  }, [user.id])
+
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -60,6 +112,9 @@ export function NavUser({ user }: { user: SerializedUser }) {
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">
                   {user.user_metadata.name || user.email}
+                </span>
+                <span className="truncate text-xs text-muted-foreground" >
+                  {workspaces.length > 0 && workspaces[0].name}
                 </span>
                 <span className="truncate text-xs">{user.email}</span>
               </div>
@@ -89,6 +144,14 @@ export function NavUser({ user }: { user: SerializedUser }) {
                 </Link>
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
+            <SidebarGroupLabel className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Workspaces
+            </SidebarGroupLabel>
+            <SidebarHeader className="px-2">
+              <TeamSwitcher teams={workspaces} loading={loading} />
+            </SidebarHeader>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="mr-2 size-4" />
               Sign out

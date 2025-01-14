@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState, use } from "react"
-import { Workspace } from "@/utils/supabase/actions/workspace/workspace"
-import { createClient } from "@/utils/supabase/client"
+import { Workspace, getWorkspaceById } from "@/utils/supabase/actions/workspace/workspace"
 import { Skeleton } from "@/components/ui/skeleton"
 
 type Params = { workspaces: string }
@@ -15,13 +14,7 @@ export default function WorkspacePage({ params }: { params: Promise<Params> }) {
   useEffect(() => {
     const loadWorkspace = async () => {
       try {
-        const supabase = await createClient()
-        const { data: workspace, error } = await supabase
-          .from('Workspaces')
-          .select('*')
-          .eq('id', workspaces)
-          .single()
-        if (error) throw error
+        const workspace = await getWorkspaceById(workspaces)
         setWorkspace(workspace)
       } catch (error) {
         console.error('Error loading workspace:', error)

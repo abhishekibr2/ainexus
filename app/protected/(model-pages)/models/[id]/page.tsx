@@ -7,13 +7,29 @@ import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, Mic, Globe, Paperclip, Send, Clock, Key, Check, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, User2 } from "lucide-react";
+import { Bot, Mic, Globe, Paperclip, Send, Clock, Key, Check, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, User2, Trash2, Edit, Save, Heart } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createUserChat, updateUserChat, getUserChatById, ChatMessage } from "@/utils/supabase/actions/user/user_chat";
 import { useSearchParams } from 'next/navigation';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { getUserConnections, addUserConnection, updateUserConnection } from "@/utils/supabase/actions/user/connections";
+import { getUserAssignedModels, assignModelToUser, updateUserAssignedModel, getUserAssignedModel, deleteUserAssignedModel } from "@/utils/supabase/actions/user/assignedModels";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { getUserConnections } from "@/utils/supabase/actions/user/connections";
-import { getUserAssignedModels } from "@/utils/supabase/actions/user/assignedModels";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import { addToFavorites, removeFromFavorites, checkIsFavorite } from "@/utils/supabase/actions/assistant/favModels";
 
 type Message = ChatMessage;
 
@@ -26,6 +42,8 @@ interface Model {
     is_auth: boolean;
     code: string | null;
     created_by: string;
+    app_id: number;
+    fields?: string[];
 }
 
 // Add the availableIcons mapping
@@ -44,10 +62,256 @@ const availableIcons: { [key: string]: any } = {
     settings: Settings,
 };
 
+// Add this before the ModelSettingsDialog component
+const settingsFormSchema = z.object({
+    name: z.string().optional(),
+    description: z.string().optional(),
+    instructions: z.string().optional(),
+    connectionKeys: z.record(z.string(), z.string()).optional()
+});
+
+type SettingsFormValues = z.infer<typeof settingsFormSchema>;
+
+// Add ModelSettingsDialog component before the main component
+const ModelSettingsDialog = ({
+    model,
+    connectionKeys,
+    onDelete,
+    onSave
+}: {
+    model: Model;
+    connectionKeys: any;
+    onDelete: () => Promise<void>;
+    onSave: (settings: any) => Promise<void>;
+}) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const form = useForm<SettingsFormValues>({
+        resolver: zodResolver(settingsFormSchema),
+        defaultValues: {
+            name: model.name,
+            description: model.description,
+            instructions: "",
+            connectionKeys: connectionKeys || {}
+        }
+    });
+
+    const onSubmit = async (data: SettingsFormValues) => {
+        await onSave(data);
+        setIsEditing(false);
+    };
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                    <DialogTitle>Model Settings</DialogTitle>
+                    <DialogDescription>
+                        Configure your model settings and connections
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <div className="space-y-6">
+                        <Tabs defaultValue="general" className="mt-4">
+                            <TabsList className="grid w-full grid-cols-3">
+                                <TabsTrigger value="general">General</TabsTrigger>
+                                {model.is_auth && <TabsTrigger value="connection">Connection</TabsTrigger>}
+                                <TabsTrigger value="advanced">Advanced</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="general" className="space-y-4 mt-4">
+                                <div className="space-y-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Model Name</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        disabled={!isEditing}
+                                                        placeholder={model.name}
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormDescription>
+                                                    The display name for your model
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="description"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Description</FormLabel>
+                                                <FormControl>
+                                                    <Textarea
+                                                        disabled={!isEditing}
+                                                        placeholder={model.description}
+                                                        className="min-h-[100px]"
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormDescription>
+                                                    A description of what your model does
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </TabsContent>
+                            {model.is_auth && (
+                                <TabsContent value="connection" className="space-y-4 mt-4">
+                                    <div className="space-y-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="connectionKeys"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <div className="flex items-center justify-between">
+                                                        <FormLabel>Connection Keys</FormLabel>
+                                                    </div>
+                                                    <FormControl>
+                                                        <div className="space-y-3">
+                                                            {model.fields?.map((fieldName, index) => (
+                                                                <div key={index} className="space-y-2">
+                                                                    <Label className="text-sm font-medium">{fieldName}</Label>
+                                                                    <Input
+                                                                        type="text"
+                                                                        disabled={!isEditing}
+                                                                        placeholder={`Enter your ${fieldName}`}
+                                                                        value={field.value?.[fieldName] || ''}
+                                                                        onChange={(e) => {
+                                                                            const newValue = { ...field.value };
+                                                                            newValue[fieldName] = e.target.value;
+                                                                            field.onChange(newValue);
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Enter the required configuration values for each field
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </TabsContent>
+                            )}
+                            <TabsContent value="advanced" className="space-y-4 mt-4">
+                                <div className="space-y-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="instructions"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Custom Instructions</FormLabel>
+                                                <FormControl>
+                                                    <Textarea
+                                                        disabled={!isEditing}
+                                                        placeholder="Enter custom instructions for the model..."
+                                                        className="min-h-[100px]"
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormDescription>
+                                                    Provide custom instructions for how the model should behave
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </TabsContent>
+                        </Tabs>
+                        <div className="flex justify-between mt-6">
+                            {isEditing ? (
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                            setIsEditing(false);
+                                            form.reset();
+                                        }}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button type="button" onClick={() => {
+                                        form.handleSubmit(onSubmit)();
+                                        setIsEditing(false);
+                                    }}>
+                                        <Save className="h-4 w-4 mr-2" />
+                                        Save Changes
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                disabled={isDeleting}
+                                            >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                {isDeleting ? "Deleting..." : "Delete Model"}
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This action cannot be undone. This will permanently delete the model
+                                                    and remove all associated data.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                    onClick={async () => {
+                                                        setIsDeleting(true);
+                                                        await onDelete();
+                                                        setIsDeleting(false);
+                                                    }}
+                                                >
+                                                    Delete
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                    <Button type="button" onClick={() => setIsEditing(true)}>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Edit Settings
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
 export default function ModelPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const searchParams = useSearchParams();
     const chatId = searchParams.get('chatId');
+    const router = useRouter();
 
     const [model, setModel] = useState<Model | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -57,6 +321,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
     const [currentChatId, setCurrentChatId] = useState<number | null>(null);
     const [connectionKeys, setConnectionKeys] = useState<any>(null);
     const [hasAccess, setHasAccess] = useState(false);
+    const [isFavorite, setIsFavorite] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -67,21 +332,33 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                 const { data: { user } } = await supabase.auth.getUser();
 
                 if (user) {
+                    // Check if model is favorite
+                    const isFav = await checkIsFavorite(user.id, parseInt(id));
+                    setIsFavorite(isFav);
+
                     // Check if user has access to this model
                     const { data: assignedModels } = await getUserAssignedModels(user.id);
-                    const hasModelAccess = assignedModels?.some(m => m.assistant_id === parseInt(id));
+                    const hasModelAccess = assignedModels?.some(m => m.id === parseInt(id));
                     setHasAccess(hasModelAccess || false);
 
                     if (!hasModelAccess) {
                         setIsLoading(false);
                         return;
                     }
-
+                    const modelId = assignedModels?.find(m => m.id === parseInt(id))?.assistant_id;
                     // Fetch model data
                     const models = await getModels(user.id);
-                    const foundModel = models.find(m => m.id === parseInt(id));
+                    const foundModel = models.find(m => m.id === modelId);
                     if (foundModel) {
+                        const assignedModel = await getUserAssignedModel(parseInt(id));
+                        //set the model name and description to the assigned model
                         setModel(foundModel);
+                        setModel(prev => ({
+                            ...prev!,
+                            name: assignedModel.name,
+                            description: assignedModel.description,
+                            is_auth: foundModel.is_auth
+                        }));
 
                         // If model requires auth, fetch connection keys
                         if (foundModel.is_auth) {
@@ -100,14 +377,23 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                             }
                         }
 
-                        // If chatId is provided, load that chat's messages
-                        if (chatId) {
+                        // Clear messages and currentChatId if no chatId in URL
+                        if (!chatId) {
+                            setMessages([]);
+                            setCurrentChatId(null);
+                        } else {
+                            // If chatId is provided, load that chat's messages
                             const chatData = await getUserChatById(parseInt(chatId));
                             if (chatData) {
                                 setMessages(chatData.chat || []);
                                 setCurrentChatId(chatData.id);
+                            } else {
+                                // If chat not found, clear messages
+                                setMessages([]);
+                                setCurrentChatId(null);
                             }
                         }
+
                     } else {
                         toast({
                             title: "Error",
@@ -133,7 +419,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if (!input.trim() || !model) return;
+        if (!input.trim() || !model || isTyping) return;
 
         setIsTyping(true);
         const timestamp = Date.now();
@@ -144,82 +430,164 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
         };
 
         setInput('');
+        // Add user message to UI immediately
+        setMessages(prev => [...prev, userMessage]);
 
         try {
             const supabase = createClient();
             const { data: { user } } = await supabase.auth.getUser();
 
-            if (user) {
-                // Add user message to UI
-                setMessages(prev => [...prev, userMessage]);
-
-                let response: any;
-                if (model && model.code) {
-                    try {
-                        // Create a safe execution context
-                        const context = {
-                            async query(data: { question: string }) {
-                                // Execute the model's code in a controlled environment
-                                const result = await eval(`
-                                    (async () => {
-                                        ${model.code}
-                                        return await query(data);
-                                    })()
-                                `);
-                                return result;
-                            }
-                        };
-
-                        // Execute the query with the user's message
-                        response = await context.query({
-                            question: userMessage.content
-                        });
-                    } catch (error) {
-                        console.error('Error executing model code:', error);
-                        response = { text: 'Error executing model code' };
-                    }
-                } else {
-                    response = { text: 'Model code not found' };
-                }
-
-                const assistantMessage: Message = {
-                    id: `assistant_${timestamp + 1}_${Math.random().toString(36).substring(2, 11)}`,
-                    role: 'assistant',
-                    content: response.text || response.message || response.content || response.response || 'No response received'
-                };
-
-                // Add assistant message to UI
-                setMessages(prev => [...prev, assistantMessage]);
-
-                // Handle chat creation or update after we have both messages
-                if (!currentChatId) {
-                    // Create new chat with both messages
-                    const chatData = await createUserChat(user.id, model.id, userMessage.content, assistantMessage);
-                    setCurrentChatId(chatData.id);
-
-                    // Dispatch custom event for new chat
-                    const event = new CustomEvent('chatCreated', {
-                        detail: {
-                            id: chatData.id,
-                            heading: userMessage.content,
-                            model_id: model.id
-                        }
-                    });
-                    window.dispatchEvent(event);
-                } else {
-                    // Update existing chat with both messages
-                    await updateUserChat(currentChatId, [userMessage, assistantMessage]);
-                }
+            if (!user) {
+                throw new Error("User not authenticated");
             }
-        } catch (error) {
+
+            let response: any;
+            if (model && model.code) {
+                try {
+                    // Create a safe execution context
+                    const context = {
+                        async query(data: { question: string }) {
+                            // Execute the model's code in a controlled environment
+                            const result = await eval(`
+                                (async () => {
+                                    ${model.code}
+                                    return await query(data);
+                                })()
+                            `);
+                            return result;
+                        }
+                    };
+
+                    // Execute the query with the user's message
+                    response = await context.query({
+                        question: userMessage.content + " {connection keys: " + JSON.stringify(connectionKeys) + "}"
+                    });
+                } catch (error) {
+                    console.error('Error executing model code:', error);
+                    throw new Error('Error executing model code');
+                }
+            } else {
+                throw new Error('Model code not found');
+            }
+
+            const assistantMessage: Message = {
+                id: `assistant_${timestamp + 1}_${Math.random().toString(36).substring(2, 11)}`,
+                role: 'assistant',
+                content: response.text || response.message || response.content || response.response || 'No response received'
+            };
+
+            // Add assistant message to UI
+            setMessages(prev => [...prev, assistantMessage]);
+
+            // Handle chat creation or update
+            if (!currentChatId) {
+                // Create new chat with both messages
+                const chatData = await createUserChat(user.id, parseInt(id), userMessage.content, assistantMessage);
+                setCurrentChatId(chatData.id);
+
+                // Dispatch custom event for new chat
+                const event = new CustomEvent('chatCreated', {
+                    detail: {
+                        id: chatData.id,
+                        heading: userMessage.content,
+                        model_id: model.id
+                    }
+                });
+                window.dispatchEvent(event);
+            } else {
+                // Update existing chat with both messages
+                await updateUserChat(currentChatId, [userMessage, assistantMessage]);
+            }
+        } catch (error: any) {
             console.error('Error:', error);
+            // Add error message to the chat
+            setMessages(prev => [...prev, {
+                id: `error_${timestamp + 1}_${Math.random().toString(36).substring(2, 11)}`,
+                role: 'assistant',
+                content: `Error: ${error.message || 'Failed to get response from the model.'}`
+            }]);
+
             toast({
                 title: "Error",
-                description: "Failed to get response from the model.",
+                description: error.message || "Failed to get response from the model.",
                 variant: "destructive",
             });
         } finally {
             setIsTyping(false);
+        }
+    };
+
+    const handleDeleteModel = async () => {
+        try {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) throw new Error("User not authenticated");
+
+            const { error } = await deleteUserAssignedModel(parseInt(id));
+
+            if (error) throw error;
+
+            toast({
+                title: "Success",
+                description: "Model deleted successfully",
+            });
+
+            // Redirect to models page
+            router.push("/protected/models/explore-models");
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.message || "Failed to delete model",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleFavoriteToggle = async () => {
+        try {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) throw new Error("User not authenticated");
+
+            if (isFavorite) {
+                const result = await removeFromFavorites(user.id, parseInt(id));
+                if (result.success) {
+                    setIsFavorite(false);
+                    toast({
+                        title: "Success",
+                        description: "Removed from favorites",
+                    });
+                    // Dispatch unfavorite event
+                    window.dispatchEvent(new CustomEvent('modelUnfavorited', {
+                        detail: { modelId: parseInt(id) }
+                    }));
+                } else {
+                    throw new Error(result.message);
+                }
+            } else {
+                const result = await addToFavorites(user.id, parseInt(id));
+                if (result.success) {
+                    setIsFavorite(true);
+                    toast({
+                        title: "Success",
+                        description: "Added to favorites",
+                    });
+                    // Dispatch favorite event
+                    window.dispatchEvent(new CustomEvent('modelFavorited', {
+                        detail: { modelId: parseInt(id) }
+                    }));
+                } else {
+                    throw new Error(result.message);
+                }
+            }
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.message || "Failed to update favorites",
+                variant: "destructive",
+            });
         }
     };
 
@@ -234,7 +602,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
         );
     }
 
-    if (!hasAccess || !model) {
+    if (!hasAccess) {
         return (
             <div className="container mx-auto px-4 py-8">
                 <div className="text-center">
@@ -243,6 +611,20 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                         You don't have access to this model. Please purchase this model from the marketplace.
                     </div>
                     <Button onClick={() => window.history.back()}>Go Back</Button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!model) {
+        return (
+            <div className="container mx-auto px-4 py-8">
+                <div className="text-center">
+                    <h1 className="text-2xl font-bold mb-4">Model Not Found</h1>
+                    <div className="text-muted-foreground mb-4">
+                        The model you are looking for does not exist.
+                    </div>
+                    <Button onClick={() => router.back()}>Go Back</Button>
                 </div>
             </div>
         );
@@ -270,37 +652,69 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                     </div>
                                     <h1 className="text-xl font-semibold">{model.name}</h1>
                                 </div>
-                                {model?.is_auth && (
-                                    <HoverCard>
-                                        <HoverCardTrigger asChild>
-                                            <Button variant="outline" size="sm">
-                                                <Key className="h-4 w-4 mr-2" />
-                                                Connection Keys
-                                            </Button>
-                                        </HoverCardTrigger>
-                                        <HoverCardContent className="w-80">
-                                            <div className="space-y-2">
-                                                <h4 className="text-sm font-semibold">Connection Details</h4>
-                                                {connectionKeys ? (
-                                                    <div className="text-sm space-y-2">
-                                                        {Object.entries(connectionKeys).map(([key, value]) => (
-                                                            <div key={key} className="flex justify-between items-center">
-                                                                <span className="font-medium">{key}:</span>
-                                                                <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                                                                    {value as string}
-                                                                </code>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-sm text-muted-foreground">
-                                                        No connection keys found. Please set up your connection in the model settings.
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </HoverCardContent>
-                                    </HoverCard>
-                                )}
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleFavoriteToggle}
+                                        className={`${isFavorite ? 'text-red-500 hover:text-red-600' : 'text-muted-foreground hover:text-foreground'}`}
+                                    >
+                                        <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+                                    </Button>
+                                    <ModelSettingsDialog
+                                        model={model}
+                                        connectionKeys={connectionKeys}
+                                        onDelete={handleDeleteModel}
+                                        onSave={async (newSettings) => {
+                                            try {
+                                                const supabase = createClient();
+                                                const { data: { user } } = await supabase.auth.getUser();
+
+                                                if (!user) throw new Error("User not authenticated");
+
+                                                // Update connection keys if changed
+                                                if (model.is_auth && newSettings.connectionKeys) {
+                                                    const { error: connectionError } = await updateUserConnection(
+                                                        model.app_id,
+                                                        JSON.stringify(newSettings.connectionKeys)
+                                                    );
+                                                    if (connectionError) throw connectionError;
+                                                }
+
+                                                // Update model settings
+                                                const { error } = await updateUserAssignedModel(
+                                                    parseInt(id),
+                                                    {
+                                                        name: newSettings.name,
+                                                        description: newSettings.description,
+                                                        instruction: newSettings.instructions
+                                                    }
+                                                );
+
+                                                if (error) throw error;
+
+                                                // Update local state
+                                                setModel(prev => ({
+                                                    ...prev!,
+                                                    name: newSettings.name,
+                                                    description: newSettings.description
+                                                }));
+                                                setConnectionKeys(newSettings.connectionKeys);
+
+                                                toast({
+                                                    title: "Success",
+                                                    description: "Model settings updated successfully",
+                                                });
+                                            } catch (error: any) {
+                                                toast({
+                                                    title: "Error",
+                                                    description: error.message || "Failed to update settings",
+                                                    variant: "destructive",
+                                                });
+                                            }
+                                        }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </motion.div>
@@ -312,14 +726,79 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                         className="border-b"
                     >
                         <div className="max-w-4xl mx-auto p-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                                    {(() => {
-                                        const IconComponent = model.icon ? availableIcons[model.icon] || Bot : Bot;
-                                        return <IconComponent className="w-5 h-5" />;
-                                    })()}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                                        {(() => {
+                                            const IconComponent = model.icon ? availableIcons[model.icon] || Bot : Bot;
+                                            return <IconComponent className="w-6 h-6" />;
+                                        })()}
+                                    </div>
+                                    <h1 className="text-2xl font-semibold">{model.name}</h1>
                                 </div>
-                                <h1 className="text-xl font-semibold">{model.name}</h1>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleFavoriteToggle}
+                                        className={`${isFavorite ? 'text-red-500 hover:text-red-600' : 'text-muted-foreground hover:text-foreground'}`}
+                                    >
+                                        <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+                                    </Button>
+                                    <ModelSettingsDialog
+                                        model={model}
+                                        connectionKeys={connectionKeys}
+                                        onDelete={handleDeleteModel}
+                                        onSave={async (newSettings) => {
+                                            try {
+                                                const supabase = createClient();
+                                                const { data: { user } } = await supabase.auth.getUser();
+
+                                                if (!user) throw new Error("User not authenticated");
+
+                                                // Update connection keys if changed
+                                                if (model.is_auth && newSettings.connectionKeys) {
+                                                    const { error: connectionError } = await updateUserConnection(
+                                                        model.app_id,
+                                                        JSON.stringify(newSettings.connectionKeys)
+                                                    );
+                                                    if (connectionError) throw connectionError;
+                                                }
+
+                                                // Update model settings
+                                                const { error } = await updateUserAssignedModel(
+                                                    parseInt(id),
+                                                    {
+                                                        name: newSettings.name,
+                                                        description: newSettings.description,
+                                                        instruction: newSettings.instructions
+                                                    }
+                                                );
+
+                                                if (error) throw error;
+
+                                                // Update local state
+                                                setModel(prev => ({
+                                                    ...prev!,
+                                                    name: newSettings.name,
+                                                    description: newSettings.description
+                                                }));
+                                                setConnectionKeys(newSettings.connectionKeys);
+
+                                                toast({
+                                                    title: "Success",
+                                                    description: "Model settings updated successfully",
+                                                });
+                                            } catch (error: any) {
+                                                toast({
+                                                    title: "Error",
+                                                    description: error.message || "Failed to update settings",
+                                                    variant: "destructive",
+                                                });
+                                            }
+                                        }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </motion.div>
@@ -372,7 +851,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                             className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} items-start gap-2`}
                                         >
                                             {m.role === 'assistant' && (
-                                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                                                <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden">
                                                     {(() => {
                                                         const IconComponent = model.icon ? availableIcons[model.icon] || Bot : Bot;
                                                         return <IconComponent className="w-5 h-5" />;
@@ -380,13 +859,59 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                                 </div>
                                             )}
                                             <motion.div
-                                                whileHover={{ scale: 1.01 }}
                                                 className={`rounded-2xl p-4 max-w-[70%] ${m.role === 'user'
                                                     ? 'bg-primary text-primary-foreground rounded-tr-none'
-                                                    : 'bg-muted text-muted-foreground rounded-tl-none'
+                                                    : 'bg-muted rounded-tl-none'
                                                     }`}
                                             >
-                                                <div className="text-sm">{m.content}</div>
+                                                {m.role === 'assistant' ? (
+                                                    <ReactMarkdown
+                                                        className="text-2sm prose dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0"
+                                                        remarkPlugins={[remarkGfm, remarkMath]}
+                                                        components={{
+                                                            code({ node, inline, className, children, ...props }: any) {
+                                                                const match = /language-(\w+)/.exec(className || '');
+                                                                return !inline && match ? (
+                                                                    <SyntaxHighlighter
+                                                                        {...props}
+                                                                        style={oneDark}
+                                                                        language={match[1]}
+                                                                        PreTag="div"
+                                                                        className="rounded-md"
+                                                                    >
+                                                                        {String(children).replace(/\n$/, '')}
+                                                                    </SyntaxHighlighter>
+                                                                ) : (
+                                                                    <code {...props} className={className}>
+                                                                        {children}
+                                                                    </code>
+                                                                );
+                                                            },
+                                                            // Customize other markdown elements if needed
+                                                            p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+                                                            ul: ({ children }) => <ul className="list-disc pl-4 mb-4 last:mb-0">{children}</ul>,
+                                                            ol: ({ children }) => <ol className="list-decimal pl-4 mb-4 last:mb-0">{children}</ol>,
+                                                            li: ({ children }) => <li className="mb-1">{children}</li>,
+                                                            h1: ({ children }) => <h1 className="text-xl font-bold mb-4">{children}</h1>,
+                                                            h2: ({ children }) => <h2 className="text-lg font-bold mb-3">{children}</h2>,
+                                                            h3: ({ children }) => <h3 className="text-md font-bold mb-2">{children}</h3>,
+                                                            a: ({ children, href }) => (
+                                                                <a href={href} className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">
+                                                                    {children}
+                                                                </a>
+                                                            ),
+                                                            blockquote: ({ children }) => (
+                                                                <blockquote className="border-l-2 border-gray-300 pl-4 italic my-4">
+                                                                    {children}
+                                                                </blockquote>
+                                                            ),
+                                                        }}
+                                                    >
+                                                        {m.content}
+                                                    </ReactMarkdown>
+                                                ) : (
+                                                    <div className="text-2sm">{m.content}</div>
+                                                )}
                                             </motion.div>
                                             {m.role === 'user' && (
                                                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
@@ -395,10 +920,14 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                             )}
                                         </motion.div>
                                     ))}
+                                </AnimatePresence>
+                                <AnimatePresence>
                                     {isTyping && (
                                         <motion.div
+                                            key="typing-indicator"
                                             initial={{ opacity: 0, y: 20, scale: 0.95 }}
                                             animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.1 } }}
                                             className="flex justify-start items-start gap-2"
                                         >
                                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden">
