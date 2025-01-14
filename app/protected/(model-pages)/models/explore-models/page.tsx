@@ -76,7 +76,7 @@ const availableIcons: { id: string; icon: any; label: string }[] = [
 ];
 
 const categories = [
-    { id: "all", name: "All Models" },
+    { id: "all", name: "All Agents" },
     { id: "chat", name: "Chat" },
     { id: "code", name: "Code" },
     { id: "research", name: "Research & Analysis" },
@@ -604,7 +604,7 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
                                     </motion.div>
-                                    Adding Model...
+                                    Adding AI Agent...
                                 </>
                             ) : (
                                 step === totalSteps ? "Submit" : "Next"
@@ -729,9 +729,9 @@ export default function ExploreModels() {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.2 }}
             >
-                <h1 className="text-4xl font-bold mb-4">AI Models</h1>
+                <h1 className="text-4xl font-bold mb-4">AI Agents</h1>
                 <div className="text-muted-foreground">
-                    Discover and use custom AI models that combine different capabilities,
+                    Discover and use custom AI agents that combine different capabilities,
                     knowledge, and skills.
                 </div>
             </motion.div>
@@ -745,7 +745,7 @@ export default function ExploreModels() {
             >
                 <Input
                     type="search"
-                    placeholder="Search AI Models"
+                    placeholder="Search AI Agents"
                     className="w-full"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
