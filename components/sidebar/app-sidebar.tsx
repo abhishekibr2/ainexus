@@ -59,7 +59,7 @@ const navMainData: NavItem[] = [
     title: "Favorite AI Agent",
     url: "",
     icon: Star,
-    isActive: false,
+    isActive: true,
     description: "Your favorite AI models",
     items: []
   },

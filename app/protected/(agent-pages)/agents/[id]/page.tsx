@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, Mic, Globe, Paperclip, Send, Clock, Key, Check, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, User2, Trash2, Edit, Save, Heart } from "lucide-react";
+import { Bot, Mic, Globe, Paperclip, Send, Clock, Key, Check, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, User2, Trash2, Edit, Save, Heart, Info, Lock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createUserChat, updateUserChat, getUserChatById, ChatMessage } from "@/utils/supabase/actions/user/user_chat";
 import { useSearchParams } from 'next/navigation';
@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { getUserConnections, addUserConnection, updateUserConnection } from "@/utils/supabase/actions/user/connections";
+import { getUserConnections, createUserConnection, updateUserConnection, Connection } from "@/utils/supabase/actions/user/connections";
 import { getUserAssignedModels, updateUserAssignedModel, getUserAssignedModel, deleteUserAssignedModel } from "@/utils/supabase/actions/user/assignedAgents";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,6 +30,10 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { addToFavorites, removeFromFavorites, checkIsFavorite } from "@/utils/supabase/actions/assistant/favModels";
 import { isSuperAdmin } from "@/utils/supabase/admin";
+import { User } from "@supabase/supabase-js";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useParams } from 'next/navigation';
+import Link from "next/link";
 
 type Message = ChatMessage;
 
@@ -67,7 +71,7 @@ const settingsFormSchema = z.object({
     name: z.string().optional(),
     description: z.string().optional(),
     instructions: z.string().optional(),
-    connectionKeys: z.record(z.string(), z.string()).optional()
+    user_connection_id: z.number().optional()
 });
 
 type SettingsFormValues = z.infer<typeof settingsFormSchema>;
@@ -78,29 +82,136 @@ const ModelSettingsDialog = ({
     connectionKeys,
     onDelete,
     onSave,
-    isAdmin
+    isAdmin,
+    onConnectionKeysChange
 }: {
     model: Model;
     connectionKeys: any;
     onDelete: () => Promise<void>;
     onSave: (settings: any) => Promise<void>;
     isAdmin: boolean;
+    onConnectionKeysChange: (keys: any) => void;
 }) => {
-    const [isEditing, setIsEditing] = useState(false);
+    const { toast } = useToast();
+    const params = useParams();
+    const id = params?.id as string;
     const [isDeleting, setIsDeleting] = useState(false);
+    const [availableConnections, setAvailableConnections] = useState<Connection[]>([]);
+    const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
+    const [connectionFieldValues, setConnectionFieldValues] = useState<Record<string, string>>({});
+
+    // Update form when selectedConnectionId changes
+    useEffect(() => {
+        if (selectedConnectionId) {
+            form.setValue('user_connection_id', selectedConnectionId);
+        }
+    }, [selectedConnectionId]);
+
+    useEffect(() => {
+        const fetchConnections = async () => {
+            try {
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                const { data: connections } = await getUserConnections(user.id);
+                if (connections) {
+                    // Filter connections for this app type
+                    const appConnections = connections.filter(conn => conn.app_id === model.app_id);
+                    setAvailableConnections(appConnections);
+
+                    // Get the current model data to find its connection
+                    const modelData = await getUserAssignedModel(parseInt(id));
+                    if (modelData?.user_connection_id) {
+                        setSelectedConnectionId(modelData.user_connection_id);
+                        // Find the connection details
+                        const currentConnection = appConnections.find(conn => 
+                            conn.id === modelData.user_connection_id);
+                        if (currentConnection?.parsedConnectionKeys) {
+                            const values = Object.fromEntries(
+                                currentConnection.parsedConnectionKeys.map((pair: { key: string; value: string }) => [pair.key, pair.value])
+                            );
+                            setConnectionFieldValues(values);
+                            // Update parent's connection keys state
+                            onConnectionKeysChange({
+                                ...values,
+                                connection_id: currentConnection.id
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching connections:', error);
+            }
+        };
+
+        if (model.is_auth) {
+            fetchConnections();
+        }
+    }, [model, id, onConnectionKeysChange]);
+
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
         defaultValues: {
             name: model.name,
             description: model.description,
             instructions: "",
-            connectionKeys: connectionKeys || {}
+            user_connection_id: undefined
         }
     });
-    const onSubmit = async (data: SettingsFormValues) => {
-        await onSave(data);
-        setIsEditing(false);
+
+    // Handle connection selection
+    const handleConnectionChange = (value: string) => {
+        const selectedConn = availableConnections.find(
+            conn => conn.id === parseInt(value)
+        );
+
+        if (selectedConn?.parsedConnectionKeys) {
+            // Parse the connection keys into the correct format
+            const values = Object.fromEntries(
+                selectedConn.parsedConnectionKeys.map(({ key, value }) => [key, value])
+            );
+            
+            // Update local state
+            setConnectionFieldValues(values);
+            setSelectedConnectionId(selectedConn.id);
+            
+            // Update parent's connection keys state through callback
+            // This will update both the settings dialog and the accessible variables dialog
+            onConnectionKeysChange({
+                ...values,
+                connection_id: selectedConn.id
+            });
+        }
     };
+
+    const onSubmit = async (data: SettingsFormValues) => {
+        try {
+            // Update the model with all the data including the connection ID
+            const { error } = await updateUserAssignedModel(parseInt(id), {
+                name: data.name,
+                description: data.description,
+                instruction: data.instructions,
+                user_connection_id: selectedConnectionId || undefined
+            });
+
+            if (error) throw error;
+
+        await onSave(data);
+            toast({
+                title: "Success",
+                description: "Settings updated successfully",
+            });
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            toast({
+                title: "Error",
+                description: "Failed to save settings. Please try again.",
+                variant: "destructive",
+            });
+        }
+    };
+
     return (
         <Dialog>
             <DialogTrigger asChild>
@@ -132,23 +243,30 @@ const ModelSettingsDialog = ({
                                     transition={{ duration: 0.2 }}
                                     className="space-y-4"
                                 >
+                                    <div className="flex items-center justify-between">
+                                        <FormLabel className="text-base font-semibold">Basic Information</FormLabel>
+                                    </div>
+                                    <div className="rounded-lg border bg-card p-4 space-y-4">
                                     <FormField
                                         control={form.control}
                                         name="name"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Agent Name</FormLabel>
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <Label className="text-sm font-medium flex items-center gap-2">
+                                                            <Bot className="h-4 w-4 text-muted-foreground" />
+                                                            Agent Name
+                                                        </Label>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            Enter a unique name
+                                                        </div>
+                                                    </div>
                                                 <FormControl>
                                                     <Input
-                                                        disabled={!isEditing}
                                                         placeholder={model.name}
                                                         {...field}
                                                     />
                                                 </FormControl>
-                                                <FormDescription>
-                                                    The display name for your agent
-                                                </FormDescription>
-                                                <FormMessage />
                                             </FormItem>
                                         )}
                                     />
@@ -157,22 +275,32 @@ const ModelSettingsDialog = ({
                                         name="description"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Description</FormLabel>
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <Label className="text-sm font-medium flex items-center gap-2">
+                                                            <FileText className="h-4 w-4 text-muted-foreground" />
+                                                            Description
+                                                        </Label>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            Describe the agent's purpose
+                                                        </div>
+                                                    </div>
                                                 <FormControl>
                                                     <Textarea
-                                                        disabled={!isEditing}
                                                         placeholder={model.description}
                                                         className="min-h-[100px]"
                                                         {...field}
                                                     />
                                                 </FormControl>
-                                                <FormDescription>
-                                                    A description of what your agent does
-                                                </FormDescription>
-                                                <FormMessage />
                                             </FormItem>
                                         )}
                                     />
+                                        <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground bg-muted/50 rounded-md p-2">
+                                            <Info className="h-4 w-4 flex-shrink-0" />
+                                            <span>
+                                                These settings help identify and describe your agent.
+                                            </span>
+                                        </div>
+                                    </div>
                                 </motion.div>
                             </TabsContent>
 
@@ -185,15 +313,62 @@ const ModelSettingsDialog = ({
                                     className="space-y-4"
                                 >
                                     {model.is_auth ? (
+                                        <>
                                         <FormField
                                             control={form.control}
-                                            name="connectionKeys"
+                                                name="user_connection_id"
                                             render={({ field }) => (
-                                                <FormItem>
+                                                    <FormItem className="space-y-4">
                                                     <div className="flex items-center justify-between">
-                                                        <FormLabel>Connection Keys</FormLabel>
+                                                            <FormLabel className="text-base font-semibold">Connection Configuration</FormLabel>
                                                     </div>
-                                                    <FormControl>
+                                                        <div className="rounded-lg border bg-card p-4 space-y-4">
+                                                            <div className="space-y-2">
+                                                                <Label className="text-sm font-medium">Select Connection</Label>
+                                                                <Select
+                                                                    value={selectedConnectionId?.toString() || ""}
+                                                                    onValueChange={handleConnectionChange}
+                                                                >
+                                                                    <SelectTrigger className="w-full">
+                                                                        <SelectValue placeholder="Choose a connection to configure this agent" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {availableConnections.map((conn) => (
+                                                                            <SelectItem 
+                                                                                key={conn.id} 
+                                                                                value={conn.id.toString()}
+                                                                            >
+                                                                                <div className="flex items-center gap-2">
+                                                                                    {conn.id === selectedConnectionId && (
+                                                                                        <Check className="h-4 w-4 text-green-500" />
+                                                                                    )}
+                                                                                    {conn.connection_name}
+                                                                                </div>
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                                                                    <Info className="h-4 w-4" />
+                                                                    Select a connection to configure this agent's authentication
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <FormLabel className="text-base font-semibold">Connection Status</FormLabel>
+                                                    {selectedConnectionId && (
+                                                        <div className="rounded-full bg-green-50 dark:bg-green-900/20 px-3 py-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-2">
+                                                            <Check className="h-3 w-3" />
+                                                            Active Connection
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="rounded-lg border bg-card p-4 space-y-4">
+                                                    {selectedConnectionId ? (
                                                         <div className="space-y-3">
                                                             {model.fields?.map((fieldName, index) => (
                                                                 <motion.div
@@ -201,31 +376,69 @@ const ModelSettingsDialog = ({
                                                                     initial={{ opacity: 0, x: -10 }}
                                                                     animate={{ opacity: 1, x: 0 }}
                                                                     transition={{ delay: index * 0.1 }}
-                                                                    className="space-y-2"
                                                                 >
-                                                                    <Label className="text-sm font-medium">{fieldName}</Label>
-                                                                    <Input
-                                                                        type="text"
-                                                                        disabled={!isEditing}
-                                                                        placeholder={`Enter your ${fieldName}`}
-                                                                        value={field.value?.[fieldName] || ''}
-                                                                        onChange={(e) => {
-                                                                            const newValue = { ...field.value };
-                                                                            newValue[fieldName] = e.target.value;
-                                                                            field.onChange(newValue);
-                                                                        }}
-                                                                    />
+                                                                    <div className="flex items-center justify-between mb-1.5">
+                                                                        <Label className="text-sm font-medium flex items-center gap-2">
+                                                                            <Key className="h-4 w-4 text-muted-foreground" />
+                                                                            {fieldName}
+                                                                        </Label>
+                                                                        <div className="text-xs text-muted-foreground">
+                                                                            Managed via Connections
+                                                                        </div>
+                                                                    </div>
+                                                                    <div
+                                                                        className="relative rounded-md border bg-muted/30 shadow-sm cursor-not-allowed"
+                                                                        title="This value is managed through the Connections page"
+                                                                    >
+                                                                        <div className="flex items-center">
+                                                                            <div className="w-full px-3 py-2 text-sm">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <Check className="h-4 w-4 text-green-500" />
+                                                                                    <span className="font-medium text-muted-foreground">
+                                                                                        {connectionFieldValues[fieldName]}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="border-l px-3 py-2">
+                                                                                <Lock className="h-4 w-4 text-muted-foreground" />
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
                                                                 </motion.div>
                                                             ))}
+                                                            <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground bg-muted/50 rounded-md p-2">
+                                                                <Info className="h-4 w-4 flex-shrink-0" />
+                                                                <span>
+                                                                    These values are managed through the Connections page.
+                                                                    To modify them, please visit the{" "}
+                                                                    <Link href="/protected/connections" className="text-blue-500 hover:underline">Connections</Link>
+                                                                    {" "}section.
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                    </FormControl>
-                                                    <FormDescription>
-                                                        Enter the required configuration values for each field
-                                                    </FormDescription>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
+                                                    ) : (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 5 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            className="flex flex-col items-center justify-center py-6 text-center space-y-4"
+                                                        >
+                                                            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                                                                <Settings className="h-6 w-6 text-muted-foreground" />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <h3 className="font-semibold">No Connection Selected</h3>
+                                                                <p className="text-sm text-muted-foreground max-w-sm">
+                                                                    Select a connection above to configure this agent's authentication settings
+                                                                </p>
+                                                            </div>
+                                                            <Link href="/protected/connections">
+                                                                Manage Connections
+                                                            </Link>
+                                                        </motion.div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </>
                                     ) : (
                                         <motion.div
                                             initial={{ opacity: 0, scale: 0.95 }}
@@ -246,57 +459,45 @@ const ModelSettingsDialog = ({
                                     transition={{ duration: 0.2 }}
                                     className="space-y-4"
                                 >
+                                    <div className="flex items-center justify-between">
+                                        <FormLabel className="text-base font-semibold">Advanced Configuration</FormLabel>
+                                    </div>
+                                    <div className="rounded-lg border bg-card p-4 space-y-4">
                                     <FormField
                                         control={form.control}
                                         name="instructions"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Custom Instructions</FormLabel>
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <Label className="text-sm font-medium flex items-center gap-2">
+                                                            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                                                            Custom Instructions
+                                                        </Label>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            Customize agent behavior
+                                                        </div>
+                                                    </div>
                                                 <FormControl>
                                                     <Textarea
-                                                        disabled={!isEditing}
                                                         placeholder="Enter custom instructions for the agent..."
                                                         className="min-h-[100px]"
                                                         {...field}
                                                     />
                                                 </FormControl>
-                                                <FormDescription>
-                                                    Provide custom instructions for how the agent should behave
-                                                </FormDescription>
-                                                <FormMessage />
                                             </FormItem>
                                         )}
                                     />
+                                        <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground bg-muted/50 rounded-md p-2">
+                                            <Info className="h-4 w-4 flex-shrink-0" />
+                                            <span>
+                                                Custom instructions allow you to define specific behaviors and rules for your agent.
+                                            </span>
+                                        </div>
+                                    </div>
                                 </motion.div>
                             </TabsContent>
-
-
-
-
                         </Tabs>
                         <div className="flex justify-between mt-6">
-                            {isEditing ? (
-                                <>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => {
-                                            setIsEditing(false);
-                                            form.reset();
-                                        }}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button type="button" onClick={() => {
-                                        form.handleSubmit(onSubmit)();
-                                        setIsEditing(false);
-                                    }}>
-                                        <Save className="h-4 w-4 mr-2" />
-                                        Save Changes
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                             <Button
@@ -331,12 +532,10 @@ const ModelSettingsDialog = ({
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>
-                                    <Button type="button" onClick={() => setIsEditing(true)}>
-                                        <Edit className="h-4 w-4 mr-2" />
-                                        Edit Settings
+                            <Button type="button" onClick={form.handleSubmit(onSubmit)}>
+                                <Save className="h-4 w-4 mr-2" />
+                                Save Changes
                                     </Button>
-                                </>
-                            )}
                         </div>
                     </div>
                 </Form>
@@ -347,12 +546,15 @@ const ModelSettingsDialog = ({
 
 // Add this component before ModelSettingsDialog component
 const AccessibleVariablesDialog = ({
-    model
+    model,
+    user,
+    connectionKeys
 }: {
     model: Model;
+    user: User | null;
+    connectionKeys: any;
 }) => {
     const [open, setOpen] = useState(false);
-
     return (
         <AlertDialog open={open} onOpenChange={setOpen}>
             <AlertDialogTrigger asChild>
@@ -372,14 +574,14 @@ const AccessibleVariablesDialog = ({
                     <div className="rounded-lg border p-4 space-y-4">
                         <div className="space-y-2">
                             <h4 className="font-medium">User Variables</h4>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="gap-2 text-sm">
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">user.id</code>
-                                    <span className="text-muted-foreground">User's ID</span>
+                                    <span className="text-muted-foreground">{user?.id}</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
-                                    <span className="text-muted-foreground">User's email</span>
+                                    <span className="text-muted-foreground">{user?.email}</span>
                                 </div>
                             </div>
                         </div>
@@ -390,7 +592,7 @@ const AccessibleVariablesDialog = ({
                                     {model.fields.map((field, index) => (
                                         <div key={index} className="flex items-center space-x-2">
                                             <code className="bg-muted px-1 py-0.5 rounded">vars.{field}</code>
-                                            <span className="text-muted-foreground">Connection {field}</span>
+                                            <span className="text-muted-foreground">{connectionKeys?.[field]}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -411,8 +613,8 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
     const searchParams = useSearchParams();
     const chatId = searchParams.get('chatId');
     const router = useRouter();
-
     const [model, setModel] = useState<Model | null>(null);
+    const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -430,7 +632,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
             try {
                 const supabase = createClient();
                 const { data: { user } } = await supabase.auth.getUser();
-
+                setUser(user);
                 if (user) {
                     // Set admin status
                     setIsAdmin(isSuperAdmin(user.email));
@@ -780,7 +982,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                     >
                                         <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
                                     </Button>
-                                    {isAdmin && <AccessibleVariablesDialog model={model} />}
+                                    {isAdmin && <AccessibleVariablesDialog user={user} model={model} connectionKeys={connectionKeys} />}
                                     <ModelSettingsDialog
                                         model={model}
                                         connectionKeys={connectionKeys}
@@ -804,110 +1006,11 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                                         );
                                                         if (connectionError) throw connectionError;
                                                     } else {
-                                                        const { error: connectionError } = await addUserConnection(
+                                                        const { error: connectionError } = await createUserConnection(
                                                             user.id,
                                                             model.app_id,
                                                             JSON.stringify(newSettings.connectionKeys),
-                                                            parseInt(id)
-                                                        );
-                                                        if (connectionError) throw connectionError;
-                                                    }
-                                                }
-
-                                                // Update model settings
-                                                const { error } = await updateUserAssignedModel(
-                                                    parseInt(id),
-                                                    {
-                                                        name: newSettings.name,
-                                                        description: newSettings.description,
-                                                        instruction: newSettings.instructions
-                                                    }
-                                                );
-
-                                                if (error) throw error;
-
-                                                // Update local state
-                                                setModel(prev => ({
-                                                    ...prev!,
-                                                    name: newSettings.name,
-                                                    description: newSettings.description
-                                                }));
-                                                setConnectionKeys(newSettings.connectionKeys);
-
-                                                toast({
-                                                    title: "Success",
-                                                    description: "Model settings updated successfully",
-                                                });
-                                            } catch (error: any) {
-                                                toast({
-                                                    title: "Error",
-                                                    description: error.message || "Failed to update settings",
-                                                    variant: "destructive",
-                                                });
-                                            }
-                                        }}
-                                        isAdmin={isAdmin}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </motion.div>
-                ) : (
-                    <motion.div
-                        key="header"
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="border-b"
-                    >
-                        <div className="max-w-4xl mx-auto p-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                                        {(() => {
-                                            const IconComponent = model.icon ? availableIcons[model.icon] || Bot : Bot;
-                                            return <IconComponent className="w-6 h-6" />;
-                                        })()}
-                                    </div>
-                                    <h1 className="text-2xl font-semibold">{model.name}</h1>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleFavoriteToggle}
-                                        className={`${isFavorite ? 'text-red-500 hover:text-red-600' : 'text-muted-foreground hover:text-foreground'}`}
-                                    >
-                                        <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
-                                    </Button>
-                                    {isAdmin && <AccessibleVariablesDialog model={model} />}
-                                    <ModelSettingsDialog
-                                        model={model}
-                                        connectionKeys={connectionKeys}
-                                        onDelete={handleDeleteModel}
-                                        onSave={async (newSettings) => {
-                                            try {
-                                                const supabase = createClient();
-                                                const { data: { user } } = await supabase.auth.getUser();
-
-                                                if (!user) throw new Error("User not authenticated");
-
-                                                // Update connection keys if changed
-                                                if (model.is_auth && newSettings.connectionKeys) {
-                                                    const { data: connections } = await getUserConnections(user.id);
-                                                    const existingConnection = connections?.find(c => c.app_id === model.app_id);
-
-                                                    if (existingConnection) {
-                                                        const { error: connectionError } = await updateUserConnection(
-                                                            existingConnection.id,
-                                                            JSON.stringify(newSettings.connectionKeys)
-                                                        );
-                                                        if (connectionError) throw connectionError;
-                                                    } else {
-                                                        const { error: connectionError } = await addUserConnection(
-                                                            user.id,
-                                                            model.app_id,
-                                                            JSON.stringify(newSettings.connectionKeys),
-                                                            parseInt(id)
+                                                            id
                                                         );
                                                         if (connectionError) throw connectionError;
                                                     }
@@ -946,6 +1049,107 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                             }
                                         }}
                                         isAdmin={isAdmin}
+                                        onConnectionKeysChange={setConnectionKeys}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="header"
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="border-b"
+                    >
+                        <div className="max-w-4xl mx-auto p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                                        {(() => {
+                                            const IconComponent = model.icon ? availableIcons[model.icon] || Bot : Bot;
+                                            return <IconComponent className="w-6 h-6" />;
+                                        })()}
+                                    </div>
+                                    <h1 className="text-2xl font-semibold">{model.name}</h1>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleFavoriteToggle}
+                                        className={`${isFavorite ? 'text-red-500 hover:text-red-600' : 'text-muted-foreground hover:text-foreground'}`}
+                                    >
+                                        <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+                                    </Button>
+                                    {isAdmin && <AccessibleVariablesDialog user={user} model={model} connectionKeys={connectionKeys} />}
+                                    <ModelSettingsDialog
+                                        model={model}
+                                        connectionKeys={connectionKeys}
+                                        onDelete={handleDeleteModel}
+                                        onSave={async (newSettings) => {
+                                            try {
+                                                const supabase = createClient();
+                                                const { data: { user } } = await supabase.auth.getUser();
+
+                                                if (!user) throw new Error("User not authenticated");
+
+                                                // Update connection keys if changed
+                                                if (model.is_auth && newSettings.connectionKeys) {
+                                                    const { data: connections } = await getUserConnections(user.id);
+                                                    const existingConnection = connections?.find(c => c.app_id === model.app_id);
+
+                                                    if (existingConnection) {
+                                                        const { error: connectionError } = await updateUserConnection(
+                                                            existingConnection.id,
+                                                            JSON.stringify(newSettings.connectionKeys)
+                                                        );
+                                                        if (connectionError) throw connectionError;
+                                                    } else {
+                                                        const { error: connectionError } = await createUserConnection(
+                                                            user.id,
+                                                            model.app_id,
+                                                            JSON.stringify(newSettings.connectionKeys),
+                                                            id
+                                                        );
+                                                        if (connectionError) throw connectionError;
+                                                    }
+                                                }
+
+                                                // Update model settings
+                                                const { error } = await updateUserAssignedModel(
+                                                    parseInt(id),
+                                                    {
+                                                        name: newSettings.name,
+                                                        description: newSettings.description,
+                                                        instruction: newSettings.instructions
+                                                    }
+                                                );
+
+                                                if (error) throw error;
+
+                                                // Update local state
+                                                setModel(prev => ({
+                                                    ...prev!,
+                                                    name: newSettings.name,
+                                                    description: newSettings.description
+                                                }));
+                                                setConnectionKeys(newSettings.connectionKeys);
+
+                                                toast({
+                                                    title: "Success",
+                                                    description: "Agent settings updated successfully",
+                                                });
+                                            } catch (error: any) {
+                                                toast({
+                                                    title: "Error",
+                                                    description: error.message || "Failed to update agent settings",
+                                                    variant: "destructive",
+                                                });
+                                            }
+                                        }}
+                                        isAdmin={isAdmin}
+                                        onConnectionKeysChange={setConnectionKeys}
                                     />
                                 </div>
                             </div>

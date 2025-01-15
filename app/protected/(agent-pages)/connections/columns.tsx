@@ -2,6 +2,32 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Connection, ConnectionKeyPair } from "@/utils/supabase/actions/user/connections";
 import { EditConnectionDialog } from "./edit-connection-dialog";
+import { Button } from "@/components/ui/button";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { useState } from "react";
+
+const HiddenKeyDisplay = ({ keyPair }: { keyPair: ConnectionKeyPair }) => {
+    const [showKey, setShowKey] = useState(false);
+
+    return (
+        <Badge variant="secondary" className="text-xs flex items-center gap-2">
+            <span className="font-semibold">{keyPair.key}:</span>
+            <span>{showKey ? keyPair.value : '••••••••'}</span>
+            <Button
+                variant="ghost"
+                size="icon"
+                className="h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => setShowKey(!showKey)}
+            >
+                {showKey ? (
+                    <EyeOffIcon className="h-3 w-3" />
+                ) : (
+                    <EyeIcon className="h-3 w-3" />
+                )}
+            </Button>
+        </Badge>
+    );
+};
 
 type Column = {
     accessorKey: keyof Connection | 'application.name' | 'actions';
@@ -19,6 +45,14 @@ export const columns: Column[] = [
         },
     },
     {
+        accessorKey: "connection_name",
+        header: "Name",
+        cell: ({ row }) => {
+            const connection = row.getValue();
+            return connection.connection_name;
+        },
+    },
+    {
         accessorKey: "connection_key",
         header: "Connection Key",
         cell: ({ row }) => {
@@ -27,10 +61,10 @@ export const columns: Column[] = [
             
             return (
                 <div className="flex flex-wrap gap-2">
-                    {keyPairs.map(({ key, value }: ConnectionKeyPair, index: number) => (
+                    {keyPairs.map((keyPair: ConnectionKeyPair, index: number) => (
                         <Badge key={index} variant="secondary" className="text-xs">
-                            <span className="font-semibold">{key}:</span>
-                            <span className="ml-1">{value}</span>
+                            <span className="font-semibold">{keyPair.key}:</span>
+                            <span className="ml-1">••••••••</span>
                         </Badge>
                     ))}
                 </div>

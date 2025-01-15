@@ -6,7 +6,8 @@ export async function assignModelToUser(
   name: string,
   assistantId: number,
   description?: string,
-  instruction?: string
+  instruction?: string,
+  userConnectionId?: number
 ) {
   try {
     const supabase = await createClient();
@@ -19,7 +20,8 @@ export async function assignModelToUser(
         name: name,
         assistant_id: assistantId,
         description: description,
-        instruction: instruction
+        instruction: instruction,
+        user_connection_id: userConnectionId
       })
       .select()
       .single();
@@ -41,6 +43,7 @@ export async function updateUserAssignedModel(
     name?: string;
     description?: string;
     instruction?: string;
+    user_connection_id?: number;
   }
 ) {
   try {
@@ -91,7 +94,15 @@ export async function getUserAssignedModel(id: number) {
   try {
     const { data, error } = await supabase
       .from("user_assigned_assistants")
-      .select()
+      .select(`
+        *,
+        connection:user_connection_id (
+          id,
+          connection_name,
+          connection_key,
+          app_id
+        )
+      `)
       .eq("id", id)
       .single();
     if (error) throw error;
@@ -108,7 +119,15 @@ export async function getUserAssignedModels(userId: string) {
 
     const { data, error } = await supabase
       .from("user_assigned_assistants")
-      .select()
+      .select(`
+        *,
+        connection:user_connection_id (
+          id,
+          connection_name,
+          connection_key,
+          app_id
+        )
+      `)
       .eq("user_id", userId);
 
     if (error) throw error;

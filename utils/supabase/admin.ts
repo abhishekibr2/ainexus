@@ -1,3 +1,6 @@
 export const isSuperAdmin = (email: string | undefined | null): boolean => {
-    return email?.toLowerCase() === "abhishekibr.trainee2@gmail.com";
+    if (!email) return false;
+    
+    const adminEmails = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+    return adminEmails.includes(email.toLowerCase());
 }; 
