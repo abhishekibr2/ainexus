@@ -63,7 +63,6 @@ export const columns: Column[] = [
                     connection={connection}
                     onSave={async (updatedConnection) => {
                         // TODO: Implement save functionality
-                        console.log('Saving connection:', updatedConnection);
                     }}
                 />
             );
