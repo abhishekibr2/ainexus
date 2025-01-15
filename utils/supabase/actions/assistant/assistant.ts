@@ -21,7 +21,7 @@ const modelFormSchema = z.object({
     is_auth: z.boolean(),
     code: z.string().optional(),
     created_by: z.string().uuid(),
-    app_id: z.number().int(),
+    app_id: z.number().int().nullable(),
 });
 
 type ModelFormValues = Omit<z.infer<typeof modelFormSchema>, 'id' | 'created_at' | 'created_by'>;
