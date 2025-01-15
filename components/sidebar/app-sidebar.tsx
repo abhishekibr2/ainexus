@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { AudioWaveform, BookOpen, Bot, Clock, Command, Frame, GalleryVerticalEnd, Map, PieChart, Settings2, SquareTerminal, StoreIcon, Text, Sparkles, Brain, Code2, History, Star, Boxes, LucideIcon, Home } from 'lucide-react'
+import { AudioWaveform, BookOpen, Bot, Clock, Command, Frame, GalleryVerticalEnd, Map, PieChart, Settings2, SquareTerminal, StoreIcon, Text, Sparkles, Brain, Code2, History, Star, Boxes, LucideIcon, Home, ChevronRight, Link2 } from 'lucide-react'
 import { createClient } from "@/utils/supabase/client"
+import Link from "next/link"
 
 import { NavMain } from "@/components/sidebar/nav-main"
 import { NavUser } from "@/components/sidebar/nav-user"
@@ -13,9 +14,13 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarRail,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
 } from "@/components/ui/sidebar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { getUserChats } from "@/utils/supabase/actions/user/user_chat"
-import { getUserAssignedModels } from "@/utils/supabase/actions/user/assignedModels"
+import { getUserAssignedModels } from "@/utils/supabase/actions/user/assignedAgents"
 import { useEffect, useState } from "react"
 import { Separator } from "../ui/separator"
 import { cn } from "@/lib/utils"
@@ -50,15 +55,6 @@ interface AssignedModel {
 
 const navMainData: NavItem[] = [
   {
-    id: "recent-chats",
-    title: "Recent Chats",
-    url: "#",
-    icon: Clock,
-    isActive: false,
-    description: "View your recent interactions",
-    items: [],
-  },
-  {
     id: "favorite-models",
     title: "Favorite AI Agent",
     url: "",
@@ -79,10 +75,17 @@ const navMainData: NavItem[] = [
   {
     id: "explore-models",
     title: "Explore AI Agent",
-    url: "/protected/models/explore-models",
+    url: "/protected/agents/explore-agents",
     icon: Boxes,
     description: "Explore AI models"
   },
+  {
+    id: "connections",
+    title: "Your Connections",
+    url: "/protected/connections",
+    icon: Link2,
+    description: "Manage your connections"
+  }
 ]
 
 // Custom events
@@ -90,12 +93,6 @@ const MODEL_FAVORITED_EVENT = 'modelFavorited'
 const MODEL_UNFAVORITED_EVENT = 'modelUnfavorited'
 const MODEL_DELETED_EVENT = 'modelDeleted'
 
-// Custom event types
-interface ModelDeletedEvent extends CustomEvent {
-  detail: {
-    modelId: number;
-  };
-}
 
 export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: SerializedUser }) {
   const [loading, setLoading] = useState(true)
@@ -106,22 +103,13 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
 
   // Transform recent chats into nav items
   const navItems = [...navMainData]
-  if (recentChats.length) {
-    navItems[0].items = recentChats.map(chat => ({
-      id: chat.id,
-      title: chat.heading,
-      url: `/protected/models/${chat.model_id}?chatId=${chat.id}`,
-      icon: Brain,
-      description: `Continue chat: ${chat.heading}`
-    }))
-  }
 
   // Add favorite models to the Favorite Models section
   if (favoriteModels.length) {
-    navItems[1].items = favoriteModels.map((model: AssignedModel) => ({
+    navItems[0].items = favoriteModels.map((model: AssignedModel) => ({
       id: model.id.toString(),
       title: model.name,
-      url: `/protected/models/${model.id}`,
+      url: `/protected/agents/${model.id}`,
       icon: Star,
       description: `Use ${model.name}`
     }))
@@ -129,10 +117,10 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
 
   // Add assigned models to the Available Models section
   if (assignedModels.length) {
-    navItems[2].items = assignedModels.map(model => ({
+    navItems[1].items = assignedModels.map(model => ({
       id: model.id.toString(),
       title: model.name,
-      url: `/protected/models/${model.id}`,
+      url: `/protected/agents/${model.id}`,
       icon: Brain,
       description: `Use ${model.assistant_name}`
     }))
@@ -306,7 +294,35 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
 
       <SidebarContent className="px-2">
         <NavMain items={navItems} />
+        <Separator className="my-4" />
+        <SidebarMenu>
+          <Collapsible asChild className="group/collapsible">
+            <SidebarMenuItem>
+              <CollapsibleTrigger asChild>
+                <SidebarMenuButton>
+                  <History className="h-4 w-4" />
+                  <span>Recent History</span>
+                  <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                </SidebarMenuButton>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1">
+                {recentChats.map(chat => (
+                  <Link
+                    key={chat.id}
+                    href={`/protected/agents/${chat.model_id}?chatId=${chat.id}`}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ml-6"
+                  >
+                    <Clock className="h-5 w-5 flex-shrink-0" />
+                    <span className="truncate">{chat.heading}</span>
+                  </Link>
+                ))}
+              </CollapsibleContent>
+            </SidebarMenuItem>
+          </Collapsible>
+        </SidebarMenu>
       </SidebarContent>
+
+      <Separator />
 
       <SidebarFooter className="mt-auto px-2">
         <NavUser user={user} />
