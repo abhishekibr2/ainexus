@@ -8,21 +8,24 @@ import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bot, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, Clock, Key, Check, ExternalLink, X } from "lucide-react";
+import { Bot, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, Clock, Key, Check, ExternalLink, X, Info, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { addUserConnection } from "@/utils/supabase/actions/user/connections";
-import { assignModelToUser } from "@/utils/supabase/actions/user/assignedAgents";
+import { useRouter, useSearchParams, useParams } from 'next/navigation';
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { assignModelToUser, getUserAssignedModel } from "@/utils/supabase/actions/user/assignedAgents";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import { getUserConnections } from "@/utils/supabase/actions/user/connections";
+import Link from "next/link";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { User } from "@supabase/supabase-js";
 
 // Step form schema
 const modelConfigSchema = z.object({
@@ -33,30 +36,8 @@ const modelConfigSchema = z.object({
     }),
     // Step 2: Authentication (if required)
     auth: z.object({
-        config_keys: z.record(z.string(), z.string()).superRefine((value, ctx) => {
-            // Get the fields from the form context
-            const fields = (ctx as any)._def?.fields || [];
-
-            // If there are no fields defined, validation passes
-            if (fields.length === 0) return;
-
-            // Check if all required fields are present and have non-empty values
-            fields.forEach((field: string) => {
-                if (!value[field] || value[field].trim() === '') {
-                    ctx.addIssue({
-                        code: z.ZodIssueCode.custom,
-                        message: `${field} is required`,
-                        path: [field]
-                    });
-                } else if (value[field].trim().length < 3) {
-                    ctx.addIssue({
-                        code: z.ZodIssueCode.custom,
-                        message: `${field} must be at least 3 characters`,
-                        path: [field]
-                    });
-                }
-            });
-        }),
+        user_connection_id: z.number().optional(),
+        config_keys: z.record(z.string(), z.string()).optional()
     }),
     // Step 3: Advanced Settings
     advanced: z.object({
@@ -67,6 +48,33 @@ const modelConfigSchema = z.object({
 
 type ModelConfigValues = z.infer<typeof modelConfigSchema>;
 
+// Add this before the defaultModelConfig
+interface ConnectionKey {
+    key: string;
+    value: string;
+}
+
+interface Connection {
+    id: number;
+    user_id: string;
+    app_id: number;
+    connection_name: string;
+    connection_key: string[];
+    parsedConnectionKeys?: ConnectionKey[];
+}
+
+interface Model {
+    id: number;
+    name: string;
+    description: string;
+    icon: string;
+    is_auth: boolean;
+    app_id: number;
+    created_by: string;
+    created_at: string;
+    fields?: string[];
+}
+
 // Step form default values
 const defaultModelConfig: ModelConfigValues = {
     basic: {
@@ -74,6 +82,7 @@ const defaultModelConfig: ModelConfigValues = {
         override_description: "",
     },
     auth: {
+        user_connection_id: undefined,
         config_keys: {},
     },
     advanced: {
@@ -107,19 +116,6 @@ const categories = [
     { id: "productivity", name: "Productivity" },
     { id: "document", name: "Document" },
 ];
-
-interface Model {
-    id: number;
-    name: string;
-    description: string;
-    icon: string;
-    is_auth: boolean;
-    api_endpoint: string;
-    created_by: string;
-    created_at: string;
-    app_id: number;
-    fields?: string[];
-}
 
 const MotionCard = motion(Card);
 
@@ -164,30 +160,19 @@ const ModelCard = ({ model }: { model: Model }) => {
             }
 
             // First assign model to user with additional configuration
-            if (model.is_auth && data.auth?.config_keys && Object.keys(data.auth.config_keys).length === model.fields?.length) {
+            if (model.is_auth && data.auth?.user_connection_id) {
                 const { data: assignedModel, error: assignError } = await assignModelToUser(
                     user.id,
                     model.app_id,
                     data.basic?.override_name || model.name,
                     model.id,
                     data.basic?.override_description,
-                    data.advanced?.override_instructions
+                    data.advanced?.override_instructions,
+                    data.auth.user_connection_id
                 );
 
                 if (assignError) throw assignError;
-                // If auth is required and config keys are provided, save them
-                const { error: connectionError } = await addUserConnection(
-                    user.id,
-                    model.app_id,
-                    JSON.stringify(data.auth.config_keys),
-                    assignedModel.id
-                );
 
-                if (connectionError) {
-                    // If token storage fails, we should clean up the assigned model
-                    // You might want to add a function to delete the assigned model here
-                    throw new Error("Failed to store authentication tokens: " + connectionError);
-                }
                 toast({
                     title: "Success",
                     description: "Model configured and added successfully",
@@ -204,15 +189,13 @@ const ModelCard = ({ model }: { model: Model }) => {
                 window.dispatchEvent(event);
 
                 setShowConfigForm(false);
-            }
-            else {
+            } else {
                 toast({
                     title: "Error",
-                    description: "Please fill out all required fields (marked with *)",
+                    description: "Please select a connection for this agent",
                     variant: "destructive",
                 });
             }
-
         } catch (error: any) {
             toast({
                 title: "Error",
@@ -365,6 +348,10 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const totalSteps = model.is_auth ? 3 : 2;
+    const [availableConnections, setAvailableConnections] = useState<Connection[]>([]);
+    const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
+    const [connectionFieldValues, setConnectionFieldValues] = useState<Record<string, string>>({});
+
     const form = useForm<ModelConfigValues>({
         resolver: zodResolver(modelConfigSchema),
         defaultValues: defaultModelConfig,
@@ -373,10 +360,56 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
         }
     });
 
+    // Fetch available connections when the form opens
+    useEffect(() => {
+        const fetchConnections = async () => {
+            if (!model.is_auth) return;
+            
+            try {
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                const { data: connections } = await getUserConnections(user.id);
+                if (connections) {
+                    // Filter connections for this app type
+                    const appConnections = connections.filter(conn => conn.app_id === model.app_id);
+                    setAvailableConnections(appConnections);
+                }
+            } catch (error) {
+                console.error('Error fetching connections:', error);
+            }
+        };
+
+        fetchConnections();
+    }, [model]);
+
+    // Handle connection selection
+    const handleConnectionChange = (value: string) => {
+        const selectedConn = availableConnections.find(
+            conn => conn.id === parseInt(value)
+        );
+
+        if (selectedConn?.parsedConnectionKeys) {
+            const values = Object.fromEntries(
+                selectedConn.parsedConnectionKeys.map(({ key, value }) => [key, value])
+            );
+            setConnectionFieldValues(values);
+            setSelectedConnectionId(selectedConn.id);
+            form.setValue('auth.user_connection_id', selectedConn.id);
+        }
+    };
+
     const onFormSubmit = async (data: ModelConfigValues) => {
         setIsSubmitting(true);
         try {
-            await onSubmit(data);
+            await onSubmit({
+                ...data,
+                auth: {
+                    ...data.auth,
+                    user_connection_id: selectedConnectionId || undefined
+                }
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -492,7 +525,7 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                             <div className="text-center">
                                 <h2 className="text-lg font-semibold">Authentication Required</h2>
                                 <p className="text-sm text-muted-foreground">
-                                    Enter your API keys and configuration
+                                    Configure your connection settings
                                 </p>
                             </div>
                             <div className="rounded-lg border p-4 space-y-4">
@@ -501,41 +534,107 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                     name="auth.config_keys"
                                     render={({ field, fieldState }) => (
                                         <FormItem className="space-y-4">
-                                            <FormLabel>Configuration Keys</FormLabel>
-                                            <FormControl>
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-medium">Select Connection</Label>
+                                                <Select
+                                                    value={selectedConnectionId?.toString() || ""}
+                                                    onValueChange={handleConnectionChange}
+                                                >
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Choose a connection to configure this agent" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {availableConnections.map((conn) => (
+                                                            <SelectItem 
+                                                                key={conn.id} 
+                                                                value={conn.id.toString()}
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    {conn.id === selectedConnectionId && (
+                                                                        <Check className="h-4 w-4 text-green-500" />
+                                                                    )}
+                                                                    {conn.connection_name}
+                                                                </div>
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                                                    <Info className="h-4 w-4" />
+                                                    Select a connection to configure this agent's authentication
+                                                </div>
+                                            </div>
+
+                                            {selectedConnectionId ? (
                                                 <div className="space-y-3">
                                                     {model.fields?.map((fieldName, index) => (
-                                                        <div key={index} className="space-y-2">
-                                                            <Label className="text-sm font-medium">
-                                                                {fieldName}
-                                                                <span className="text-destructive ml-1">*</span>
-                                                            </Label>
-                                                            <Input
-                                                                type="text"
-                                                                placeholder={`Enter your ${fieldName}`}
-                                                                value={field.value?.[fieldName] || ''}
-                                                                onChange={(e) => {
-                                                                    const newValue = { ...field.value };
-                                                                    newValue[fieldName] = e.target.value;
-                                                                    field.onChange(newValue);
-                                                                }}
-                                                                className={cn(
-                                                                    fieldState.error?.message?.includes(fieldName) && "border-destructive"
-                                                                )}
-                                                            />
-                                                            {fieldState.error?.message?.includes(fieldName) && (
-                                                                <p className="text-sm text-destructive">
-                                                                    {fieldState.error.message}
-                                                                </p>
-                                                            )}
-                                                        </div>
+                                                        <motion.div
+                                                            key={index}
+                                                            initial={{ opacity: 0, x: -10 }}
+                                                            animate={{ opacity: 1, x: 0 }}
+                                                            transition={{ delay: index * 0.1 }}
+                                                        >
+                                                            <div className="flex items-center justify-between mb-1.5">
+                                                                <Label className="text-sm font-medium flex items-center gap-2">
+                                                                    <Key className="h-4 w-4 text-muted-foreground" />
+                                                                    {fieldName}
+                                                                </Label>
+                                                                <div className="text-xs text-muted-foreground">
+                                                                    Managed via Connections
+                                                                </div>
+                                                            </div>
+                                                            <div
+                                                                className="relative rounded-md border bg-muted/30 shadow-sm cursor-not-allowed"
+                                                                title="This value is managed through the Connections page"
+                                                            >
+                                                                <div className="flex items-center">
+                                                                    <div className="w-full px-3 py-2 text-sm">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Check className="h-4 w-4 text-green-500" />
+                                                                            <span className="font-medium text-muted-foreground">
+                                                                                {connectionFieldValues[fieldName]}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="border-l px-3 py-2">
+                                                                        <Lock className="h-4 w-4 text-muted-foreground" />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </motion.div>
                                                     ))}
+                                                    <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground bg-muted/50 rounded-md p-2">
+                                                        <Info className="h-4 w-4 flex-shrink-0" />
+                                                        <span>
+                                                            These values are managed through the Connections page.
+                                                            To modify them, please visit the{" "}
+                                                            <Link href="/protected/connections" className="text-blue-500 hover:underline">Connections</Link>
+                                                            {" "}section.
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            </FormControl>
-                                            <FormDescription>
-                                                Enter the required configuration values for each field
-                                            </FormDescription>
-                                            <FormMessage />
+                                            ) : (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 5 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    className="flex flex-col items-center justify-center py-6 text-center space-y-4"
+                                                >
+                                                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                                                        <Settings className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <h3 className="font-semibold">No Connection Selected</h3>
+                                                        <p className="text-sm text-muted-foreground max-w-sm">
+                                                            Select a connection above to configure this agent's authentication settings
+                                                        </p>
+                                                    </div>
+                                                    <Link href="/protected/connections">
+                                                        <Button variant="outline" size="sm">
+                                                            Manage Connections
+                                                        </Button>
+                                                    </Link>
+                                                </motion.div>
+                                            )}
                                         </FormItem>
                                     )}
                                 />
@@ -705,6 +804,292 @@ const EmptyState: React.FC = () => (
         </motion.p>
     </motion.div>
 );
+
+const AccessibleVariablesDialog = ({
+    model,
+    user,
+    connectionKeys,
+    selectedConnection
+}: {
+    model: Model;
+    user: User | null;
+    connectionKeys: Record<string, string>;
+    selectedConnection?: Connection;
+}) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <AlertDialog open={open} onOpenChange={setOpen}>
+            <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <Code2 className="h-4 w-4 mr-2" />
+                    Variables
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Accessible Variables</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Available variables for this agent
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-4">
+                    <div className="rounded-lg border p-4 space-y-4">
+                        <div className="space-y-2">
+                            <h4 className="font-medium">User Variables</h4>
+                            <div className="gap-2 text-sm">
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">user.id</code>
+                                    <span className="text-muted-foreground">{user?.id}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
+                                    <span className="text-muted-foreground">{user?.email}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {model.is_auth && selectedConnection && (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-medium">Connection Variables</h4>
+                                    <div className="text-xs text-muted-foreground">
+                                        From: {selectedConnection.connection_name}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-2 text-sm">
+                                    {model.fields?.map((field, index) => (
+                                        <div key={index} className="flex items-center justify-between space-x-2 bg-muted/30 p-2 rounded-md">
+                                            <code className="bg-muted px-1 py-0.5 rounded">vars.{field}</code>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-muted-foreground">{connectionKeys[field]}</span>
+                                                <Lock className="h-3 w-3 text-muted-foreground" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground bg-muted/50 rounded-md p-2">
+                                    <Info className="h-4 w-4 flex-shrink-0" />
+                                    <span>
+                                        These variables are securely managed through your connection settings
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogAction onClick={() => setOpen(false)}>Close</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+};
+
+const ModelSettingsDialog = ({
+    model,
+    onDelete,
+    onSave,
+    isAdmin
+}: {
+    model: Model;
+    onDelete: () => Promise<void>;
+    onSave: (settings: any) => Promise<void>;
+    isAdmin: boolean;
+}) => {
+    const { toast } = useToast();
+    const params = useParams();
+    const id = params?.id as string;
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [availableConnections, setAvailableConnections] = useState<Connection[]>([]);
+    const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
+    const [connectionFieldValues, setConnectionFieldValues] = useState<Record<string, string>>({});
+    const [selectedConnection, setSelectedConnection] = useState<Connection | undefined>();
+    const [user, setUser] = useState<User | null>(null);
+
+    const form = useForm<ModelConfigValues>({
+        resolver: zodResolver(modelConfigSchema),
+        defaultValues: {
+            basic: {
+                override_name: model.name,
+                override_description: model.description,
+            },
+            auth: {
+                user_connection_id: undefined,
+                config_keys: {},
+            },
+            advanced: {
+                override_instructions: "",
+                permission_scope: "private",
+            },
+        }
+    });
+
+    // Get user on mount
+    useEffect(() => {
+        const getUser = async () => {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            setUser(user);
+        };
+        getUser();
+    }, []);
+
+    // Update form when selectedConnectionId changes
+    useEffect(() => {
+        if (selectedConnectionId) {
+            form.setValue('auth.user_connection_id', selectedConnectionId);
+        }
+    }, [selectedConnectionId, form]);
+
+    useEffect(() => {
+        const fetchConnections = async () => {
+            try {
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                const { data: connections } = await getUserConnections(user.id);
+                if (connections) {
+                    // Filter connections for this app type
+                    const appConnections = connections.filter(conn => conn.app_id === model.app_id);
+                    setAvailableConnections(appConnections);
+
+                    // Get the current model data to find its connection
+                    const modelData = await getUserAssignedModel(parseInt(id));
+                    if (modelData?.user_connection_id) {
+                        setSelectedConnectionId(modelData.user_connection_id);
+                        // Find the connection details
+                        const currentConnection = appConnections.find(conn => 
+                            conn.id === modelData.user_connection_id);
+                        if (currentConnection?.parsedConnectionKeys) {
+                            setSelectedConnection(currentConnection);
+                            const values = Object.fromEntries(
+                                currentConnection.parsedConnectionKeys.map((pair: { key: string; value: string }) => [pair.key, pair.value])
+                            );
+                            setConnectionFieldValues(values);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching connections:', error);
+            }
+        };
+
+        if (model.is_auth) {
+            fetchConnections();
+        }
+    }, [model, id]);
+
+    // Handle connection selection
+    const handleConnectionChange = (value: string) => {
+        const selectedConn = availableConnections.find(
+            conn => conn.id === parseInt(value)
+        );
+
+        if (selectedConn?.parsedConnectionKeys) {
+            const values = Object.fromEntries(
+                selectedConn.parsedConnectionKeys.map(({ key, value }) => [key, value])
+            );
+            setConnectionFieldValues(values);
+            setSelectedConnectionId(selectedConn.id);
+            setSelectedConnection(selectedConn);
+            form.setValue('auth.user_connection_id', selectedConn.id);
+        }
+    };
+
+    const onFormSubmit = async (data: ModelConfigValues) => {
+        try {
+            await onSave({
+                ...data,
+                auth: {
+                    ...data.auth,
+                    user_connection_id: selectedConnectionId || undefined
+                }
+            });
+
+            // After successful save, refresh the connection data
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data: connections } = await getUserConnections(user.id);
+            if (connections) {
+                const appConnections = connections.filter(conn => conn.app_id === model.app_id);
+                setAvailableConnections(appConnections);
+
+                // Get the current model data to find its connection
+                const modelData = await getUserAssignedModel(parseInt(id));
+                if (modelData?.user_connection_id) {
+                    setSelectedConnectionId(modelData.user_connection_id);
+                    // Find the connection details
+                    const currentConnection = appConnections.find(conn => 
+                        conn.id === modelData.user_connection_id);
+                    if (currentConnection?.parsedConnectionKeys) {
+                        setSelectedConnection(currentConnection);
+                        const values = Object.fromEntries(
+                            currentConnection.parsedConnectionKeys.map((pair: { key: string; value: string }) => [pair.key, pair.value])
+                        );
+                        setConnectionFieldValues(values);
+                    }
+                }
+            }
+
+            toast({
+                title: "Success",
+                description: "Settings saved successfully",
+            });
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            toast({
+                title: "Error",
+                description: "Failed to save settings",
+                variant: "destructive",
+            });
+        }
+    };
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                    <DialogTitle>Agent Settings</DialogTitle>
+                    <DialogDescription>
+                        Configure your agent settings and connections
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="flex items-center gap-2 mb-4">
+                    {isAdmin && (
+                        <AccessibleVariablesDialog 
+                            user={user} 
+                            model={model} 
+                            connectionKeys={connectionFieldValues}
+                            selectedConnection={selectedConnection}
+                        />
+                    )}
+                </div>
+                <Form {...form}>
+                    <FormField
+                        control={form.control}
+                        name="basic.override_name"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Name</FormLabel>
+                                <FormControl>
+                                    <Input {...field} />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                    />
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+};
 
 export default function ExploreModels() {
     const [models, setModels] = useState<Model[]>([]);

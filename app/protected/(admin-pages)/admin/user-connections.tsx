@@ -14,10 +14,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { Connection, parseConnectionKey, updateUserConnection, getUserEmailById } from "@/utils/supabase/actions/user/connections";
-import { EditConnectionDialog } from "../../(agent-pages)/connections/edit-connection-dialog";
-import { createClient } from "@/utils/supabase/client";
+import { Connection, updateUserConnection, getUserConnections } from "@/utils/supabase/actions/user/connections";
+import { EditConnectionDialog } from "./components/EditConnectionDialog";
 import { useToast } from "@/hooks/use-toast";
+import { createClient } from "@/utils/supabase/client";
 import { HelpCircle } from "lucide-react";
 import {
     Tooltip,
@@ -57,24 +57,92 @@ const ConnectionSkeletonRow = () => (
     </MotionTableRow>
 );
 
+function parseConnectionKeyString(keyString: string | string[]): { key: string; value: string }[] {
+    try {
+        // If it's already an array from the database
+        if (Array.isArray(keyString)) {
+            return keyString
+                .filter(Boolean)
+                .map(pair => {
+                    const [key, value] = pair.split('=').map(s => s.trim());
+                    return { key: key || '', value: value || '' };
+                });
+        }
+
+        // If it's a string in PostgreSQL array format
+        if (typeof keyString === 'string') {
+            if (keyString.startsWith('{') && keyString.endsWith('}')) {
+                const cleanString = keyString.slice(1, -1); // Remove { }
+                if (!cleanString) return [];
+
+                return cleanString
+                    .split(',')
+                    .filter(Boolean)
+                    .map(pair => {
+                        const cleanPair = pair.replace(/^"|"$/g, '').trim(); // Remove quotes
+                        const [key, value] = cleanPair.split('=').map(s => s.trim());
+                        return { key: key || '', value: value || '' };
+                    });
+            }
+
+            // If it's a JSON string
+            try {
+                const parsed = JSON.parse(keyString);
+                if (Array.isArray(parsed)) {
+                    return parsed
+                        .filter(Boolean)
+                        .map(pair => {
+                            const [key, value] = (pair as string).split('=').map((s: string) => s.trim());
+                            return { key: key || '', value: value || '' };
+                        });
+                }
+
+                // If it's an object
+                return Object.entries(parsed)
+                    .filter(([key, value]) => key && value)
+                    .map(([key, value]) => ({
+                        key,
+                        value: String(value).trim()
+                    }));
+            } catch {
+                // If JSON parsing fails, try direct key=value format
+                if (keyString.includes('=')) {
+                    const [key, value] = keyString.split('=').map(s => s.trim());
+                    return [{ key: key || '', value: value || '' }];
+                }
+            }
+        }
+
+        return [];
+    } catch (error) {
+        console.error('Error parsing connection key:', error);
+        return [];
+    }
+}
+
 export function UserConnections() {
     const [connections, setConnections] = useState<Connection[]>([]);
-    const [userEmails, setUserEmails] = useState<{[key: string]: string}>({});
+    const [userEmails, setUserEmails] = useState<{ [key: string]: string }>({});
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const { toast } = useToast();
 
     const fetchUserEmails = async (userIds: string[]) => {
+        const supabase = createClient();
         const uniqueUserIds = Array.from(new Set(userIds));
-        const emailMap: {[key: string]: string} = {};
-        
+        const emailMap: { [key: string]: string } = {};
+
         for (const userId of uniqueUserIds) {
-            const { data } = await getUserEmailById(userId);
-            if (data?.name) {
-                emailMap[userId] = data.name;
+            const { data } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('id', userId)
+                .single();
+            if (data?.full_name) {
+                emailMap[userId] = data.full_name;
             }
         }
-        
+
         setUserEmails(emailMap);
     };
 
@@ -87,19 +155,20 @@ export function UserConnections() {
                 .select(`
                     *,
                     application:app_id (
-                        name,
-                        description,
-                        logo
+                        id,
+                        name
                     )
                 `);
 
             if (data) {
-                const connectionsWithParsedKeys = data.map((connection: Connection) => ({
+                const connectionsWithParsedKeys = data.map((connection) => ({
                     ...connection,
-                    parsedConnectionKeys: parseConnectionKey(connection.connection_key)
-                }));
+                    parsedConnectionKeys: connection.connection_key ? 
+                        parseConnectionKeyString(connection.connection_key) : 
+                        []
+                })) as Connection[];
                 setConnections(connectionsWithParsedKeys);
-                
+
                 // Fetch emails for all users
                 const userIds = connectionsWithParsedKeys.map(conn => conn.user_id);
                 await fetchUserEmails(userIds);
@@ -160,7 +229,8 @@ export function UserConnections() {
                 <TableHeader>
                     <TableRow>
                         <TableHead>Application</TableHead>
-                        <TableHead>User ID</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Connection Name</TableHead>
                         <TableHead>Connection Keys</TableHead>
                         <TableHead>Created At</TableHead>
                         <TableHead>Updated At</TableHead>
@@ -175,14 +245,14 @@ export function UserConnections() {
                                 <ConnectionSkeletonRow />
                                 <ConnectionSkeletonRow />
                             </>
-                        ) : filteredConnections.length === 0 ? (
+                        ) : connections.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8">
+                                <TableCell colSpan={7} className="text-center py-8">
                                     No connections found
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            filteredConnections.map((connection) => (
+                            connections.map((connection) => (
                                 <MotionTableRow
                                     key={connection.id}
                                     variants={item}
@@ -208,12 +278,13 @@ export function UserConnections() {
                                             )}
                                         </div>
                                     </TableCell>
+                                    <TableCell>{connection.connection_name}</TableCell>
                                     <TableCell>
                                         <div className="flex flex-wrap gap-2">
                                             {connection.parsedConnectionKeys?.map((keyPair, idx) => (
                                                 <Badge key={idx} variant="secondary" className="text-xs">
                                                     <span className="font-semibold">{keyPair.key}:</span>
-                                                    <span className="ml-1">{keyPair.value}</span>
+                                                    <span className="ml-1">{'•'.repeat(8)}</span>
                                                 </Badge>
                                             ))}
                                         </div>

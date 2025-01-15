@@ -1,54 +1,90 @@
-import { createClient } from "../../client";
+import { createClient } from "@/utils/supabase/client";
 
-export type ConnectionKeyPair = {
+export interface ConnectionKeyPair {
   key: string;
   value: string;
-};
+}
 
-export type Connection = {
+export interface Connection {
   id: number;
   created_at: string;
-  user_id: string;
   updated_at: string;
-  connection_key: string[] | string;
+  user_id: string;
+  connection_key: string;
   app_id: number;
-  user_assigned_assistant_id: number;
-  application: {
+  connection_name: string;
+  application?: {
+    id: number;
     name: string;
-    description: string;
-    logo: string;
+    fields?: string[];
   };
-  profiles?: {
-    full_name: string;
-    email: string;
-  };
-  parsedConnectionKeys: ConnectionKeyPair[];
-};
+  parsedConnectionKeys?: ConnectionKeyPair[];
+}
 
-export function parseConnectionKey(keyData: string[] | string): ConnectionKeyPair[] {
+export interface ConnectionError extends Error {
+  code?: string;
+  details?: string;
+}
+
+function parseConnectionKeyString(keyString: string | string[]): ConnectionKeyPair[] {
+  if (!keyString) return [];
+
   try {
-    // If it's already an array, process it directly
-    if (Array.isArray(keyData)) {
-      return keyData.map(pair => {
-        const [key, value] = pair.split('=');
-        return {
-          key: key?.trim() || '',
-          value: value?.trim() || ''
-        };
-      });
+    // If it's already an array from the database
+    if (Array.isArray(keyString)) {
+      return keyString
+        .filter(Boolean)
+        .map(pair => {
+          const [key, value] = pair.split('=').map(s => s.trim());
+          return { key: key || '', value: value || '' };
+        });
     }
 
-    // If it's a string, handle the PostgreSQL array format
-    const cleanString = keyData.replace(/^{|}$/g, '');
-    const pairs = cleanString.split(',').map(str => str.replace(/^"|"$/g, ''));
+    // If it's a string in PostgreSQL array format
+    if (typeof keyString === 'string') {
+      if (keyString.startsWith('{') && keyString.endsWith('}')) {
+        const cleanString = keyString.slice(1, -1); // Remove { }
+        if (!cleanString) return [];
 
-    return pairs.map(pair => {
-      const [key, value] = pair.split('=');
-      return {
-        key: key?.trim() || '',
-        value: value?.trim() || ''
-      };
-    });
+        return cleanString
+          .split(',')
+          .filter(Boolean)
+          .map(pair => {
+            const cleanPair = pair.replace(/^"|"$/g, '').trim(); // Remove quotes
+            const [key, value] = cleanPair.split('=').map(s => s.trim());
+            return { key: key || '', value: value || '' };
+          });
+      }
+
+      // If it's a JSON string
+      try {
+        const parsed = JSON.parse(keyString);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter(Boolean)
+            .map(pair => {
+              const [key, value] = pair.split('=').map((s: string) => s.trim());
+              return { key: key || '', value: value || '' };
+            });
+        }
+
+        // If it's an object
+        return Object.entries(parsed)
+          .filter(([key, value]) => key && value)
+          .map(([key, value]) => ({
+            key,
+            value: String(value).trim()
+          }));
+      } catch {
+        // If JSON parsing fails, try direct key=value format
+        if (keyString.includes('=')) {
+          const [key, value] = keyString.split('=').map(s => s.trim());
+          return [{ key: key || '', value: value || '' }];
+        }
+      }
+    }
+
+    return [];
   } catch (error) {
     console.error('Error parsing connection key:', error);
     return [];
@@ -56,129 +92,168 @@ export function parseConnectionKey(keyData: string[] | string): ConnectionKeyPai
 }
 
 export async function getUserConnections(userId: string) {
-  try {
-    const supabase = await createClient();
+  if (!userId) throw new Error('User ID is required');
 
-    const { data, error } = await supabase
-      .from('user_connection')
-      .select(`
-        *,
-        application:app_id (
-          name,
-          description,
-          logo
-        )
-      `)
-      .eq('user_id', userId);
+  const supabase = createClient();
 
-    if (error) throw error;
+  const { data, error } = await supabase
+    .from('user_connection')
+    .select(`
+      *,
+      application:app_id (
+        id,
+        name,
+        fields
+      ),
+      assigned_agents:user_assigned_assistants (
+        id,
+        name
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
 
-    // Parse connection keys for each connection
-    const connectionsWithParsedKeys = data?.map(connection => ({
-      ...connection,
-      parsedConnectionKeys: parseConnectionKey(connection.connection_key)
-    }));
-
-    return { data: connectionsWithParsedKeys, error: null };
-  } catch (error) {
-    console.error("Error getting user connections:", error);
+  if (error) {
+    console.error('Error fetching user connections:', error);
     return { data: null, error };
   }
+
+  // Parse connection_key string and format it for display
+  const connectionsWithParsedKeys = data?.map(connection => ({
+    ...connection,
+    parsedConnectionKeys: connection.connection_key ?
+      parseConnectionKeyString(connection.connection_key) :
+      []
+  })) || [];
+
+  return { data: connectionsWithParsedKeys, error: null };
 }
 
-export async function addUserConnection(
+export async function createUserConnection(
   userId: string,
   appId: number,
-  connectionKey: string,
-  userAssignedAssistantId: number
+  connectionName: string,
+  connectionKey: string
 ) {
-  try {
-    const supabase = await createClient();
+  if (!userId) throw new Error('User ID is required');
+  if (!appId) throw new Error('Application ID is required');
+  if (!connectionName) throw new Error('Connection name is required');
+  if (!connectionKey) throw new Error('Connection key is required');
 
-    // Convert JSON string to array format
-    const keyPairs = JSON.parse(connectionKey);
-    const arrayValues = Object.entries(keyPairs)
-      .map(([key, value]) => `${key}=${value}`);
-    // Store the connection key as a PostgreSQL array
-    const { data, error } = await supabase
-      .from("user_connection")
-      .insert({
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('user_connection')
+    .insert([
+      {
         user_id: userId,
         app_id: appId,
-        user_assigned_assistant_id: userAssignedAssistantId,
-        connection_key: `{${arrayValues.map(v => `"${v}"`).join(',')}}`,
-      })
-      .select()
-      .single();
+        connection_name: connectionName.trim(),
+        connection_key: connectionKey
+      }
+    ])
+    .select(`
+      *,
+      application:app_id (
+        id,
+        name,
+        fields
+      )
+    `)
+    .single();
 
-    if (error) {
-      console.error("Database error:", error);
-      throw error;
-    }
-    return { data, error: null };
-  } catch (error) {
-    console.error("Error adding user connection:", error);
+  if (error) {
+    console.error('Error creating user connection:', error);
     return { data: null, error };
   }
+
+  // Parse connection_key
+  const connectionWithParsedKeys = data ? {
+    ...data,
+    parsedConnectionKeys: data.connection_key ?
+      parseConnectionKeyString(data.connection_key) :
+      []
+  } : null;
+
+  return { data: connectionWithParsedKeys, error: null };
+}
+
+export async function updateUserConnection(
+  connectionId: number,
+  connectionKey?: string,
+  connectionName?: string
+) {
+  if (!connectionId) throw new Error('Connection ID is required');
+
+  const supabase = createClient();
+  
+  const updateData: Partial<Connection> = {};
+  
+  if (connectionKey !== undefined) {
+    updateData.connection_key = connectionKey;
+  }
+  if (connectionName !== undefined) {
+    updateData.connection_name = connectionName.trim();
+  }
+
+  const { data, error } = await supabase
+    .from('user_connection')
+    .update(updateData)
+    .eq('id', connectionId)
+    .select(`
+      *,
+      application:app_id (
+        id,
+        name,
+        fields
+      )
+    `)
+    .single();
+
+  if (error) {
+    console.error('Error updating user connection:', error);
+    return { data: null, error };
+  }
+
+  // Parse connection_key
+  const connectionWithParsedKeys = data ? {
+    ...data,
+    parsedConnectionKeys: data.connection_key ? 
+      parseConnectionKeyString(data.connection_key) : 
+      []
+  } : null;
+
+  return { data: connectionWithParsedKeys, error: null };
 }
 
 export async function deleteUserConnection(connectionId: number) {
-  try {
-    const supabase = await createClient();
+  if (!connectionId) throw new Error('Connection ID is required');
 
-    const { data, error } = await supabase
-      .from("user_connection")
-      .delete()
-      .eq("id", connectionId);
+  const supabase = createClient();
 
-    if (error) throw error;
-    return { data, error: null };
-  } catch (error) {
-    console.error("Error deleting user connection:", error);
-    return { data: null, error };
+  const { error } = await supabase
+    .from('user_connection')
+    .delete()
+    .eq('id', connectionId);
+
+  if (error) {
+    console.error('Error deleting user connection:', error);
   }
+
+  return { error };
 }
 
-export async function updateUserConnection(connectionId: number, connectionKey: string) {
-  try {
-    const supabase = await createClient();
+export async function getApplications() {
+  const supabase = createClient();
 
-    // Parse the JSON string and convert to array format
-    const keyPairs = JSON.parse(connectionKey);
-    const arrayValues = Object.entries(keyPairs)
-      .map(([key, value]) => `${key}=${value}`);
+  const { data, error } = await supabase
+    .from('application')
+    .select('id, name, fields')
+    .order('name');
 
-    const { data, error } = await supabase
-      .from("user_connection")
-      .update({
-        connection_key: `{${arrayValues.map(v => `"${v}"`).join(',')}}`
-      })
-      .eq("id", connectionId);
-
-    if (error) throw error;
-    return { data, error: null };
-  } catch (error) {
-    console.error("Error updating user connection:", error);
-    return { data: null, error };
+  if (error) {
+    console.error('Error fetching applications:', error);
   }
+
+  return { data: data || [], error };
 }
-
-export async function getUserEmailById(userId: string) {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('user')
-      .select('name')
-      .eq('id', userId)
-      .single();
-
-    if (error) {
-      return { data: null, error: null }; // Return null data but no error to handle gracefully
-    }
-    return { data, error: null };
-  } catch (error) {
-    console.error("Error fetching user name:", error);
-    return { data: null, error };
-  }
-}
-

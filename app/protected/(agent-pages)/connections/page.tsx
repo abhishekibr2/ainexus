@@ -11,15 +11,31 @@ import {
 import { columns } from "./columns";
 import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
-import { Connection, getUserConnections, updateUserConnection } from "@/utils/supabase/actions/user/connections";
+import { Connection, createUserConnection, deleteUserConnection, getApplications, getUserConnections, updateUserConnection } from "@/utils/supabase/actions/user/connections";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { EditConnectionDialog } from "./edit-connection-dialog";
+import { AddConnectionDialog } from "./add-connection-dialog";
 import { toast } from "@/hooks/use-toast";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { TrashIcon } from "lucide-react";
 
 export default function ConnectionPage() {
     const [connections, setConnections] = useState<Connection[]>([]);
+    const [applications, setApplications] = useState<{ id: number; name: string; fields: any }[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [connectionToDelete, setConnectionToDelete] = useState<Connection | null>(null);
 
     const fetchConnections = async () => {
         try {
@@ -31,10 +47,16 @@ export default function ConnectionPage() {
                 throw new Error("User not authenticated");
             }
 
-            const { data, error } = await getUserConnections(userId);
-            if (error) throw error;
+            const [connectionsResult, applicationsResult] = await Promise.all([
+                getUserConnections(userId),
+                getApplications()
+            ]);
 
-            setConnections(data || []);
+            if (!connectionsResult.data || !applicationsResult.data) {
+                throw new Error("Failed to load data");
+            }
+            setConnections(connectionsResult.data);
+            setApplications(applicationsResult.data);
         } catch (err) {
             console.error('Error in fetchConnections:', err);
             setError(err instanceof Error ? err : new Error('Failed to load connections'));
@@ -47,9 +69,47 @@ export default function ConnectionPage() {
         fetchConnections();
     }, []);
 
+    const handleAddConnection = async (newConnection: { app_id: number; connection_name: string; connection_key: string }) => {
+        try {
+            const supabase = createClient();
+            const { data: user } = await supabase.auth.getUser();
+            const userId = user?.user?.id;
+
+            if (!userId) {
+                throw new Error("User not authenticated");
+            }
+
+            const { error } = await createUserConnection(
+                userId,
+                newConnection.app_id,
+                newConnection.connection_name,
+                newConnection.connection_key
+            );
+
+            if (error) throw error;
+
+            await fetchConnections();
+            toast({
+                title: 'Connection added successfully',
+                description: 'Your new connection has been created.',
+            });
+        } catch (err) {
+            console.error('Error adding connection:', err);
+            toast({
+                title: 'Failed to add connection',
+                description: 'There was an error creating your connection.',
+                variant: 'destructive',
+            });
+        }
+    };
+
     const handleUpdateConnection = async (connectionId: number, data: Partial<Connection>) => {
         try {
-            await updateUserConnection(connectionId, data.connection_key as string);
+            await updateUserConnection(
+                connectionId,
+                data.connection_key as string,
+                data.connection_name
+            );
             await fetchConnections();
             toast({
                 title: 'Connection updated successfully',
@@ -60,7 +120,38 @@ export default function ConnectionPage() {
             toast({
                 title: 'Failed to update connection',
                 description: 'There was an error updating your connection.',
+                variant: 'destructive',
             });
+        }
+    };
+
+    const handleDeleteConnection = async (connection: Connection) => {
+        setConnectionToDelete(connection);
+        setDeleteDialogOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!connectionToDelete) return;
+
+        try {
+            const { error } = await deleteUserConnection(connectionToDelete.id);
+            if (error) throw error;
+
+            await fetchConnections();
+            toast({
+                title: 'Connection deleted successfully',
+                description: 'Your connection has been deleted.',
+            });
+        } catch (err) {
+            console.error('Error deleting connection:', err);
+            toast({
+                title: 'Failed to delete connection',
+                description: 'There was an error deleting your connection.',
+                variant: 'destructive',
+            });
+        } finally {
+            setDeleteDialogOpen(false);
+            setConnectionToDelete(null);
         }
     };
 
@@ -79,12 +170,6 @@ export default function ConnectionPage() {
         </div>;
     }
 
-    if (!connections.length) {
-        return <div className="flex items-center justify-center p-8">
-            <div className="text-lg">No connections found</div>
-        </div>;
-    }
-
     const columnsWithActions = columns.map(column => {
         if (column.accessorKey === 'actions') {
             return {
@@ -92,12 +177,25 @@ export default function ConnectionPage() {
                 cell: ({ row }: { row: { getValue: () => Connection } }) => {
                     const connection = row.getValue();
                     return (
-                        <EditConnectionDialog
-                            connection={connection}
-                            onSave={async (updatedConnection) => {
-                                await handleUpdateConnection(connection.id, updatedConnection);
-                            }}
-                        />
+                        <div className="flex items-center gap-2">
+                            {connection && (
+                                <>
+                                    <EditConnectionDialog
+                                        connection={connection}
+                                        onSave={async (updatedConnection) => {
+                                            await handleUpdateConnection(connection.id, updatedConnection);
+                                        }}
+                                    />
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleDeleteConnection(connection)}
+                                    >
+                                        <TrashIcon className="h-4 w-4" />
+                                    </Button>
+                                </>
+                            )}
+                        </div>
                     );
                 },
             };
@@ -107,38 +205,77 @@ export default function ConnectionPage() {
 
     return (
         <div className="container mx-auto py-10">
-            <h1 className="text-2xl font-bold">Your Connections</h1>
-            <p className="text-sm text-muted-foreground mb-6">You can manage your connections with AI agents here.</p>
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            {columnsWithActions.map((column) => (
-                                <TableHead key={column.accessorKey}>
-                                    {column.header}
-                                </TableHead>
-                            ))}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {connections?.map((connection) => (
-                            <TableRow key={connection.id}>
-                                {columnsWithActions.map((column) => {
-                                    return (
-                                        <TableCell key={column.accessorKey}>
-                                            {column.cell
-                                                ? column.cell({ row: { getValue: () => connection } })
-                                                : column.accessorKey === 'application.name'
-                                                    ? connection.application?.name
-                                                    : String(connection[column.accessorKey as keyof typeof connection] || '')}
-                                        </TableCell>
-                                    );
-                                })}
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h1 className="text-2xl font-bold">Your Connections</h1>
+                    <p className="text-sm text-muted-foreground">Manage your connections with AI agents here.</p>
+                </div>
+                <AddConnectionDialog
+                    applications={applications}
+                    onAdd={handleAddConnection}
+                />
             </div>
+
+            {!connections.length ? (
+                <div className="flex items-center justify-center p-8 border rounded-lg">
+                    <div className="text-center">
+                        <p className="text-lg mb-2">No connections found</p>
+                        <p className="text-sm text-muted-foreground">Add a new connection to get started.</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                {columnsWithActions.map((column) => (
+                                    <TableHead key={column.accessorKey}>
+                                        {column.header}
+                                    </TableHead>
+                                ))}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {connections?.map((connection) => (
+                                <TableRow key={connection.id}>
+                                    {columnsWithActions.map((column) => {
+                                        return (
+                                            <TableCell key={column.accessorKey}>
+                                                {column.cell
+                                                    ? column.cell({ row: { getValue: () => connection } })
+                                                    : column.accessorKey === 'application.name'
+                                                        ? connection.application?.name
+                                                        : String(connection[column.accessorKey as keyof typeof connection] || '')}
+                                            </TableCell>
+                                        );
+                                    })}
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
+
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the connection for {connectionToDelete?.application?.name}.
+                            This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDelete}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
