@@ -63,9 +63,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Editor from "@monaco-editor/react";
-import { Connection, getUserConnections, parseConnectionKey, updateUserConnection } from "@/utils/supabase/actions/user/connections";
-import { format } from "date-fns";
-import { EditConnectionDialog } from "../../(agent-pages)/connections/edit-connection-dialog";
 import { UserConnections } from "./user-connections";
 
 // Predefined icons
@@ -148,6 +145,15 @@ const item = {
     }
 };
 
+interface NewModel {
+    name: string;
+    description: string;
+    icon: string;
+    is_auth: boolean;
+    code: string;
+    app_id: number | null;
+}
+
 export default function AdminPage() {
     const [models, setModels] = useState(mockModels);
     const [searchTerm, setSearchTerm] = useState("");
@@ -193,7 +199,7 @@ export default function AdminPage() {
     );
 
     const AddModelDialog = () => {
-        const [newModel, setNewModel] = useState({
+        const [newModel, setNewModel] = useState<NewModel>({
             name: "",
             description: "",
             icon: availableIcons[0].id,
@@ -248,13 +254,9 @@ export default function AdminPage() {
                 return;
             }
 
+
             if (newModel.app_id === 0) {
-                toast({
-                    title: "Error",
-                    description: "Please select an app type.",
-                    variant: "destructive",
-                });
-                return;
+                newModel.app_id = null;
             }
 
             try {
@@ -426,53 +428,6 @@ export default function AdminPage() {
                                 <div className="flex-1 overflow-y-auto">
                                     <div className="p-6 space-y-6">
                                         <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="app_id">App Type</Label>
-                                                {isLoadingApps ? (
-                                                    <Skeleton className="h-10 w-full" />
-                                                ) : (
-                                                    <select
-                                                        id="app_id"
-                                                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                                        value={newModel.app_id}
-                                                        onChange={(e) => {
-                                                            const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
-                                                            setNewModel({
-                                                                ...newModel,
-                                                                app_id: parseInt(e.target.value),
-                                                                is_auth: selectedApp?.auth_required || false
-                                                            });
-                                                        }}
-                                                        required
-                                                    >
-                                                        <option value="0" disabled>Select app type</option>
-                                                        {appOptions.map((app) => (
-                                                            <option key={app.id} value={app.id}>
-                                                                {app.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                )}
-                                                {appOptions.find(app => app.id === newModel.app_id)?.description && (
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {appOptions.find(app => app.id === newModel.app_id)?.description}
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            {appOptions.find(app => app.id === newModel.app_id)?.fields && newModel.is_auth && (
-                                                <div className="space-y-2">
-                                                    <Label>Required Fields</Label>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
-                                                            <Badge key={index} className="text-xs">
-                                                                {field}
-                                                            </Badge>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
                                             <div className="flex items-center justify-between">
                                                 <div className="space-y-0.5">
                                                     <Label htmlFor="is_auth">Authentication Required</Label>
@@ -487,10 +442,59 @@ export default function AdminPage() {
                                                         setNewModel({
                                                             ...newModel,
                                                             is_auth: checked,
+                                                            app_id: checked ? newModel.app_id : 0, // Reset app_id if auth is disabled
                                                         });
                                                     }}
                                                 />
                                             </div>
+
+                                            {newModel.is_auth && (
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="app_id">App Type</Label>
+                                                    {isLoadingApps ? (
+                                                        <Skeleton className="h-10 w-full" />
+                                                    ) : (
+                                                        <select
+                                                            id="app_id"
+                                                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                                            value={newModel.app_id?.toString() || ''}
+                                                            onChange={(e) => {
+                                                                const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
+                                                                setNewModel({
+                                                                    ...newModel,
+                                                                    app_id: parseInt(e.target.value),
+                                                                });
+                                                            }}
+                                                            required
+                                                        >
+                                                            <option value="0" disabled>Select app type</option>
+                                                            {appOptions.map((app) => (
+                                                                <option key={app.id} value={app.id}>
+                                                                    {app.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                    {appOptions.find(app => app.id === newModel.app_id)?.description && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {appOptions.find(app => app.id === newModel.app_id)?.description}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {appOptions.find(app => app.id === newModel.app_id)?.fields && newModel.is_auth && (
+                                                <div className="space-y-2">
+                                                    <Label>Required Fields</Label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
+                                                            <Badge key={index} className="text-xs">
+                                                                {field}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -770,12 +774,7 @@ export default function AdminPage() {
             }
 
             if (modelData.app_id === 0) {
-                toast({
-                    title: "Error",
-                    description: "Please select an app type.",
-                    variant: "destructive",
-                });
-                return;
+                modelData.app_id = null;
             }
 
             try {
@@ -953,53 +952,6 @@ export default function AdminPage() {
                                 <div className="flex-1 overflow-y-auto">
                                     <div className="p-6 space-y-6">
                                         <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="app_id">App Type</Label>
-                                                {isLoadingApps ? (
-                                                    <Skeleton className="h-10 w-full" />
-                                                ) : (
-                                                    <select
-                                                        id="app_id"
-                                                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                                        value={modelData.app_id}
-                                                        onChange={(e) => {
-                                                            const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
-                                                            setModelData({
-                                                                ...modelData,
-                                                                app_id: parseInt(e.target.value),
-                                                                is_auth: selectedApp?.auth_required || false
-                                                            });
-                                                        }}
-                                                        required
-                                                    >
-                                                        <option value="0" disabled>Select app type</option>
-                                                        {appOptions.map((app) => (
-                                                            <option key={app.id} value={app.id}>
-                                                                {app.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                )}
-                                                {appOptions.find(app => app.id === modelData.app_id)?.description && (
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {appOptions.find(app => app.id === modelData.app_id)?.description}
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            {appOptions.find(app => app.id === modelData.app_id)?.fields && modelData.is_auth && (
-                                                <div className="space-y-2">
-                                                    <Label>Required Fields</Label>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
-                                                            <Badge key={index} className="text-xs">
-                                                                {field}
-                                                            </Badge>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
                                             <div className="flex items-center justify-between">
                                                 <div className="space-y-0.5">
                                                     <Label htmlFor="is_auth">Authentication Required</Label>
@@ -1014,10 +966,59 @@ export default function AdminPage() {
                                                         setModelData({
                                                             ...modelData,
                                                             is_auth: checked,
+                                                            app_id: checked ? modelData.app_id : 0, // Reset app_id if auth is disabled
                                                         });
                                                     }}
                                                 />
                                             </div>
+
+                                            {modelData.is_auth && (
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="app_id">App Type</Label>
+                                                    {isLoadingApps ? (
+                                                        <Skeleton className="h-10 w-full" />
+                                                    ) : (
+                                                        <select
+                                                            id="app_id"
+                                                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                                            value={modelData.app_id}
+                                                            onChange={(e) => {
+                                                                const selectedApp = appOptions.find(app => app.id === parseInt(e.target.value));
+                                                                setModelData({
+                                                                    ...modelData,
+                                                                    app_id: parseInt(e.target.value),
+                                                                });
+                                                            }}
+                                                            required
+                                                        >
+                                                            <option value="0" disabled>Select app type</option>
+                                                            {appOptions.map((app) => (
+                                                                <option key={app.id} value={app.id}>
+                                                                    {app.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                    {appOptions.find(app => app.id === modelData.app_id)?.description && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {appOptions.find(app => app.id === modelData.app_id)?.description}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {appOptions.find(app => app.id === modelData.app_id)?.fields && modelData.is_auth && (
+                                                <div className="space-y-2">
+                                                    <Label>Required Fields</Label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
+                                                            <Badge key={index} className="text-xs">
+                                                                {field}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
