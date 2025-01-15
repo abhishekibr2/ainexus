@@ -26,6 +26,7 @@ import { useRouter } from "next-nprogress-bar";
 import { TeamSwitcher } from "@/components/sidebar/team-switcher"
 import { getUserWorkspaces, Workspace } from "@/utils/supabase/actions/workspace/workspace"
 import { useEffect, useState } from "react"
+import { isSuperAdmin } from "@/utils/supabase/admin"
 
 
 interface SerializedUser {
@@ -136,7 +137,7 @@ export function NavUser({ user }: { user: SerializedUser }) {
                 Profile
               </Link>
             </DropdownMenuItem>
-            {user.email === "abhishekibr.trainee2@gmail.com" && (
+            {isSuperAdmin(user.email) && (
               <DropdownMenuItem asChild>
                 <Link href="/protected/admin" className="flex items-center">
                   <Settings className="mr-2 size-4" />

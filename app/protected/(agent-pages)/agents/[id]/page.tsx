@@ -16,8 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { getUserConnections, addUserConnection, updateUserConnection } from "@/utils/supabase/actions/user/connections";
-import { getUserAssignedModels, assignModelToUser, updateUserAssignedModel, getUserAssignedModel, deleteUserAssignedModel } from "@/utils/supabase/actions/user/assignedModels";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { getUserAssignedModels, updateUserAssignedModel, getUserAssignedModel, deleteUserAssignedModel } from "@/utils/supabase/actions/user/assignedAgents";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -30,6 +29,7 @@ import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { addToFavorites, removeFromFavorites, checkIsFavorite } from "@/utils/supabase/actions/assistant/favModels";
+import { isSuperAdmin } from "@/utils/supabase/admin";
 
 type Message = ChatMessage;
 
@@ -77,12 +77,14 @@ const ModelSettingsDialog = ({
     model,
     connectionKeys,
     onDelete,
-    onSave
+    onSave,
+    isAdmin
 }: {
     model: Model;
     connectionKeys: any;
     onDelete: () => Promise<void>;
     onSave: (settings: any) => Promise<void>;
+    isAdmin: boolean;
 }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -95,12 +97,10 @@ const ModelSettingsDialog = ({
             connectionKeys: connectionKeys || {}
         }
     });
-
     const onSubmit = async (data: SettingsFormValues) => {
         await onSave(data);
         setIsEditing(false);
     };
-
     return (
         <Dialog>
             <DialogTrigger asChild>
@@ -111,9 +111,9 @@ const ModelSettingsDialog = ({
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                    <DialogTitle>Model Settings</DialogTitle>
+                    <DialogTitle>Agent Settings</DialogTitle>
                     <DialogDescription>
-                        Configure your model settings and connections
+                        Configure your agent settings and connections
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -121,17 +121,23 @@ const ModelSettingsDialog = ({
                         <Tabs defaultValue="general" className="mt-4">
                             <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="general">General</TabsTrigger>
-                                {model.is_auth && <TabsTrigger value="connection">Connection</TabsTrigger>}
+                                <TabsTrigger value="connection">Connection</TabsTrigger>
                                 <TabsTrigger value="advanced">Advanced</TabsTrigger>
                             </TabsList>
                             <TabsContent value="general" className="space-y-4 mt-4">
-                                <div className="space-y-4">
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="space-y-4"
+                                >
                                     <FormField
                                         control={form.control}
                                         name="name"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Model Name</FormLabel>
+                                                <FormLabel>Agent Name</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         disabled={!isEditing}
@@ -140,7 +146,7 @@ const ModelSettingsDialog = ({
                                                     />
                                                 </FormControl>
                                                 <FormDescription>
-                                                    The display name for your model
+                                                    The display name for your agent
                                                 </FormDescription>
                                                 <FormMessage />
                                             </FormItem>
@@ -161,17 +167,24 @@ const ModelSettingsDialog = ({
                                                     />
                                                 </FormControl>
                                                 <FormDescription>
-                                                    A description of what your model does
+                                                    A description of what your agent does
                                                 </FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
-                                </div>
+                                </motion.div>
                             </TabsContent>
-                            {model.is_auth && (
-                                <TabsContent value="connection" className="space-y-4 mt-4">
-                                    <div className="space-y-4">
+
+                            <TabsContent value="connection" className="space-y-4 mt-4">
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="space-y-4"
+                                >
+                                    {model.is_auth ? (
                                         <FormField
                                             control={form.control}
                                             name="connectionKeys"
@@ -183,7 +196,13 @@ const ModelSettingsDialog = ({
                                                     <FormControl>
                                                         <div className="space-y-3">
                                                             {model.fields?.map((fieldName, index) => (
-                                                                <div key={index} className="space-y-2">
+                                                                <motion.div
+                                                                    key={index}
+                                                                    initial={{ opacity: 0, x: -10 }}
+                                                                    animate={{ opacity: 1, x: 0 }}
+                                                                    transition={{ delay: index * 0.1 }}
+                                                                    className="space-y-2"
+                                                                >
                                                                     <Label className="text-sm font-medium">{fieldName}</Label>
                                                                     <Input
                                                                         type="text"
@@ -196,7 +215,7 @@ const ModelSettingsDialog = ({
                                                                             field.onChange(newValue);
                                                                         }}
                                                                     />
-                                                                </div>
+                                                                </motion.div>
                                                             ))}
                                                         </div>
                                                     </FormControl>
@@ -207,42 +226,26 @@ const ModelSettingsDialog = ({
                                                 </FormItem>
                                             )}
                                         />
-                                    </div>
-                                </TabsContent>
-                            )}
+                                    ) : (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="text-center p-4 text-muted-foreground"
+                                        >
+                                            This agent does not require any connection settings.
+                                        </motion.div>
+                                    )}
+                                </motion.div>
+                            </TabsContent>
+
                             <TabsContent value="advanced" className="space-y-4 mt-4">
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label>Accessible Variables</Label>
-                                        <div className="rounded-lg border p-4 space-y-4">
-                                            <div className="space-y-2">
-                                                <h4 className="font-medium">User Variables</h4>
-                                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                                    <div className="flex items-center space-x-2">
-                                                        <code className="bg-muted px-1 py-0.5 rounded">user.id</code>
-                                                        <span className="text-muted-foreground">User's ID</span>
-                                                    </div>
-                                                    <div className="flex items-center space-x-2">
-                                                        <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
-                                                        <span className="text-muted-foreground">User's email</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {model.is_auth && model.fields && model.fields.length > 0 && (
-                                                <div className="space-y-2">
-                                                    <h4 className="font-medium">Connection Variables</h4>
-                                                    <div className="grid grid-cols-1 gap-2 text-sm">
-                                                        {model.fields.map((field, index) => (
-                                                            <div key={index} className="flex items-center space-x-2">
-                                                                <code className="bg-muted px-1 py-0.5 rounded">vars.{field}</code>
-                                                                <span className="text-muted-foreground">Connection {field}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="space-y-4"
+                                >
                                     <FormField
                                         control={form.control}
                                         name="instructions"
@@ -252,20 +255,24 @@ const ModelSettingsDialog = ({
                                                 <FormControl>
                                                     <Textarea
                                                         disabled={!isEditing}
-                                                        placeholder="Enter custom instructions for the model..."
+                                                        placeholder="Enter custom instructions for the agent..."
                                                         className="min-h-[100px]"
                                                         {...field}
                                                     />
                                                 </FormControl>
                                                 <FormDescription>
-                                                    Provide custom instructions for how the model should behave
+                                                    Provide custom instructions for how the agent should behave
                                                 </FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
-                                </div>
+                                </motion.div>
                             </TabsContent>
+
+
+
+
                         </Tabs>
                         <div className="flex justify-between mt-6">
                             {isEditing ? (
@@ -298,14 +305,14 @@ const ModelSettingsDialog = ({
                                                 disabled={isDeleting}
                                             >
                                                 <Trash2 className="h-4 w-4 mr-2" />
-                                                {isDeleting ? "Deleting..." : "Delete Model"}
+                                                {isDeleting ? "Deleting..." : "Delete Agent"}
                                             </Button>
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    This action cannot be undone. This will permanently delete the model
+                                                    This action cannot be undone. This will permanently delete the agent
                                                     and remove all associated data.
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
@@ -338,6 +345,67 @@ const ModelSettingsDialog = ({
     );
 };
 
+// Add this component before ModelSettingsDialog component
+const AccessibleVariablesDialog = ({
+    model
+}: {
+    model: Model;
+}) => {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <AlertDialog open={open} onOpenChange={setOpen}>
+            <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <Code2 className="h-4 w-4 mr-2" />
+                    Variables
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Accessible Variables</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Available variables for this agent
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-4">
+                    <div className="rounded-lg border p-4 space-y-4">
+                        <div className="space-y-2">
+                            <h4 className="font-medium">User Variables</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">user.id</code>
+                                    <span className="text-muted-foreground">User's ID</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
+                                    <span className="text-muted-foreground">User's email</span>
+                                </div>
+                            </div>
+                        </div>
+                        {model.is_auth && model.fields && model.fields.length > 0 && (
+                            <div className="space-y-2">
+                                <h4 className="font-medium">Connection Variables</h4>
+                                <div className="grid grid-cols-1 gap-2 text-sm">
+                                    {model.fields.map((field, index) => (
+                                        <div key={index} className="flex items-center space-x-2">
+                                            <code className="bg-muted px-1 py-0.5 rounded">vars.{field}</code>
+                                            <span className="text-muted-foreground">Connection {field}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogAction onClick={() => setOpen(false)}>Close</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+};
+
 export default function ModelPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const searchParams = useSearchParams();
@@ -354,6 +422,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
     const [hasAccess, setHasAccess] = useState(false);
     const [isFavorite, setIsFavorite] = useState(false);
     const { toast } = useToast();
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
         const fetchModelAndChat = async () => {
@@ -363,6 +432,8 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                 const { data: { user } } = await supabase.auth.getUser();
 
                 if (user) {
+                    // Set admin status
+                    setIsAdmin(isSuperAdmin(user.email));
                     // Check if model is favorite
                     const isFav = await checkIsFavorite(user.id, parseInt(id));
                     setIsFavorite(isFav);
@@ -432,7 +503,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     } else {
                         toast({
                             title: "Error",
-                            description: "Model not found.",
+                            description: "Agent not found.",
                             variant: "destructive",
                         });
                     }
@@ -491,9 +562,6 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                 acc[key] = value;
                                 return acc;
                             }, {}) as any;
-                            console.log(user.id)
-                            console.log(user.email)
-                            console.log(vars)
                             const result = await eval(`
                                 (async () => {
                                     ${model.code}
@@ -506,14 +574,14 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
 
                     // Execute the query with the user's message
                     response = await context.query({
-                        question: userMessage.content + " {connection keys: " + JSON.stringify(connectionKeys) + "}"
+                        question: userMessage.content
                     });
                 } catch (error) {
-                    console.error('Error executing model code:', error);
-                    throw new Error('Error executing model code');
+                    console.error('Error executing agent code:', error);
+                    throw new Error('Error executing agent code');
                 }
             } else {
-                throw new Error('Model code not found');
+                throw new Error('Agent code not found');
             }
 
             const assistantMessage: Message = {
@@ -536,7 +604,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     detail: {
                         id: chatData.id,
                         heading: userMessage.content,
-                        model_id: model.id
+                        agent_id: model.id
                     }
                 });
                 window.dispatchEvent(event);
@@ -581,15 +649,15 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
 
             toast({
                 title: "Success",
-                description: "Model deleted successfully",
+                description: "Agent deleted successfully",
             });
 
             // Redirect to models page
-            router.push("/protected/models/explore-models");
+            router.push("/protected/agents/explore-agents");
         } catch (error: any) {
             toast({
                 title: "Error",
-                description: error.message || "Failed to delete model",
+                description: error.message || "Failed to delete agent",
                 variant: "destructive",
             });
         }
@@ -659,7 +727,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                 <div className="text-center">
                     <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
                     <div className="text-muted-foreground mb-4">
-                        You don't have access to this model. Please purchase this model from the marketplace.
+                        You don't have access to this agent. Please purchase this agent from the marketplace.
                     </div>
                     <Button onClick={() => window.history.back()}>Go Back</Button>
                 </div>
@@ -673,7 +741,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                 <div className="text-center">
                     <h1 className="text-2xl font-bold mb-4">Model Not Found</h1>
                     <div className="text-muted-foreground mb-4">
-                        The model you are looking for does not exist.
+                        The agent you are looking for does not exist.
                     </div>
                     <Button onClick={() => router.back()}>Go Back</Button>
                 </div>
@@ -712,6 +780,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                     >
                                         <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
                                     </Button>
+                                    {isAdmin && <AccessibleVariablesDialog model={model} />}
                                     <ModelSettingsDialog
                                         model={model}
                                         connectionKeys={connectionKeys}
@@ -777,6 +846,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                                 });
                                             }
                                         }}
+                                        isAdmin={isAdmin}
                                     />
                                 </div>
                             </div>
@@ -809,6 +879,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                                     >
                                         <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
                                     </Button>
+                                    {isAdmin && <AccessibleVariablesDialog model={model} />}
                                     <ModelSettingsDialog
                                         model={model}
                                         connectionKeys={connectionKeys}
@@ -864,16 +935,17 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
 
                                                 toast({
                                                     title: "Success",
-                                                    description: "Model settings updated successfully",
+                                                    description: "Agent settings updated successfully",
                                                 });
                                             } catch (error: any) {
                                                 toast({
                                                     title: "Error",
-                                                    description: error.message || "Failed to update settings",
+                                                    description: error.message || "Failed to update agent settings",
                                                     variant: "destructive",
                                                 });
                                             }
                                         }}
+                                        isAdmin={isAdmin}
                                     />
                                 </div>
                             </div>

@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { addUserConnection } from "@/utils/supabase/actions/user/connections";
-import { assignModelToUser } from "@/utils/supabase/actions/user/assignedModels";
+import { assignModelToUser } from "@/utils/supabase/actions/user/assignedAgents";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -218,7 +218,7 @@ const ModelCard = ({ model }: { model: Model }) => {
         } catch (error: any) {
             toast({
                 title: "Error",
-                description: error.message || "Failed to configure model",
+                description: error.message || "Failed to configure agent",
                 variant: "destructive",
             });
         } finally {
@@ -441,7 +441,7 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                             <div className="text-center">
                                 <h2 className="text-lg font-semibold">Basic Configuration</h2>
                                 <p className="text-sm text-muted-foreground">
-                                    Customize the basic settings for your model
+                                    Customize the basic settings for your agent
                                 </p>
                             </div>
                             <FormField
@@ -454,7 +454,7 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                             <Input placeholder={model.name} {...field} />
                                         </FormControl>
                                         <FormDescription>
-                                            Customize the display name for this model
+                                            Customize the display name for this agent
                                         </FormDescription>
                                         <FormMessage />
                                     </FormItem>
@@ -474,7 +474,7 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                             />
                                         </FormControl>
                                         <FormDescription>
-                                            Customize the description for this model
+                                            Customize the description for this agent
                                         </FormDescription>
                                         <FormMessage />
                                     </FormItem>
@@ -556,7 +556,7 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                             <div className="text-center">
                                 <h2 className="text-lg font-semibold">Advanced Settings</h2>
                                 <p className="text-sm text-muted-foreground">
-                                    Configure advanced options for your model
+                                    Configure advanced options for your agent
                                 </p>
                             </div>
                             <FormField
@@ -567,13 +567,13 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                         <FormLabel>Override Instructions (Optional)</FormLabel>
                                         <FormControl>
                                             <Textarea
-                                                placeholder="Enter custom instructions for the model..."
+                                                placeholder="Enter custom instructions for the agent..."
                                                 className="min-h-[100px]"
                                                 {...field}
                                             />
                                         </FormControl>
                                         <FormDescription>
-                                            Provide custom instructions for how the model should behave
+                                            Provide custom instructions for how the agent should behave
                                         </FormDescription>
                                         <FormMessage />
                                     </FormItem>
@@ -599,7 +599,7 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                             </SelectContent>
                                         </Select>
                                         <FormDescription>
-                                            Control who can access this model
+                                            Control who can access this agent
                                         </FormDescription>
                                         <FormMessage />
                                     </FormItem>
@@ -695,7 +695,7 @@ const EmptyState: React.FC = () => (
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
         >
-            No models found
+            No agents found
         </motion.h3>
         <motion.p
             className="mt-2 text-sm text-muted-foreground"
@@ -703,7 +703,7 @@ const EmptyState: React.FC = () => (
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
         >
-            We couldn't find any models matching your criteria.
+            We couldn't find any agents matching your criteria.
         </motion.p>
     </motion.div>
 );

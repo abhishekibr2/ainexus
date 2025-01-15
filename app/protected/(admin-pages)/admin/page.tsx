@@ -63,6 +63,10 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Editor from "@monaco-editor/react";
+import { Connection, getUserConnections, parseConnectionKey, updateUserConnection } from "@/utils/supabase/actions/user/connections";
+import { format } from "date-fns";
+import { EditConnectionDialog } from "../../(agent-pages)/connections/edit-connection-dialog";
+import { UserConnections } from "./user-connections";
 
 // Predefined icons
 const availableIcons: { id: string; icon: LucideIcon; label: string }[] = [
@@ -296,7 +300,7 @@ export default function AdminPage() {
                 <DialogTrigger asChild>
                     <Button className="mb-4" onClick={() => setIsDialogOpen(true)}>
                         <Plus className="mr-2 h-4 w-4" />
-                        Add New Model
+                        Add New Agent
                     </Button>
                 </DialogTrigger>
                 <DialogContent
@@ -313,9 +317,9 @@ export default function AdminPage() {
                     }}
                 >
                     <DialogHeader className="p-6 pb-0 flex-shrink-0">
-                        <DialogTitle>Create New Model</DialogTitle>
+                        <DialogTitle>Create New Agent</DialogTitle>
                         <DialogDescription>
-                            Configure your AI model's settings and behavior.
+                            Configure your AI agent's settings and behavior.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -352,10 +356,10 @@ export default function AdminPage() {
                                     <div className="p-6 space-y-6">
                                         <div className="space-y-4">
                                             <div className="space-y-2">
-                                                <Label htmlFor="name">Model Name</Label>
+                                                <Label htmlFor="name">Agent Name</Label>
                                                 <Input
                                                     id="name"
-                                                    placeholder="Enter model name"
+                                                    placeholder="Enter agent name"
                                                     value={newModel.name}
                                                     onChange={(e) =>
                                                         setNewModel({ ...newModel, name: e.target.value })
@@ -394,7 +398,7 @@ export default function AdminPage() {
                                             </div>
 
                                             <div className="space-y-2">
-                                                <Label>Model Icon</Label>
+                                                <Label>Agent Icon</Label>
                                                 <div className="grid grid-cols-6 gap-2">
                                                     {availableIcons.map((icon) => {
                                                         const IconComponent = icon.icon;
@@ -580,7 +584,7 @@ export default function AdminPage() {
                                             Creating...
                                         </>
                                     ) : (
-                                        'Create Model'
+                                        'Create Agent'
                                     )}
                                 </Button>
                             </div>
@@ -604,13 +608,13 @@ export default function AdminPage() {
 
             toast({
                 title: "Success",
-                description: "Model deleted successfully!",
+                description: "Agent deleted successfully!",
             });
         } catch (error) {
             console.error('Error deleting model:', error);
             toast({
                 title: "Error",
-                description: "Failed to delete model. Please try again.",
+                description: "Failed to delete agent. Please try again.",
                 variant: "destructive",
             });
         } finally {
@@ -629,7 +633,7 @@ export default function AdminPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2">
                             <AlertTriangle className="h-5 w-5 text-destructive" />
-                            Delete Model
+                            Delete Agent
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                             Are you sure you want to delete <span className="font-semibold">{model?.name}</span>? This action cannot be undone.
@@ -648,7 +652,7 @@ export default function AdminPage() {
                                     Deleting...
                                 </>
                             ) : (
-                                'Delete Model'
+                                'Delete Agent'
                             )}
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -784,7 +788,7 @@ export default function AdminPage() {
 
                 toast({
                     title: "Success",
-                    description: "Model updated successfully!",
+                    description: "Agent updated successfully!",
                 });
                 setShowEditDialog(false);
                 setEditingModel(null);
@@ -792,7 +796,7 @@ export default function AdminPage() {
                 console.error('Error updating model:', error);
                 toast({
                     title: "Error",
-                    description: error.message || "Failed to update model. Please try again.",
+                    description: error.message || "Failed to update agent. Please try again.",
                     variant: "destructive",
                 });
             } finally {
@@ -846,9 +850,9 @@ export default function AdminPage() {
                     }}
                 >
                     <DialogHeader className="p-6 pb-0 flex-shrink-0">
-                        <DialogTitle>Edit Model</DialogTitle>
+                        <DialogTitle>Edit Agent</DialogTitle>
                         <DialogDescription>
-                            Update your AI model's settings and behavior.
+                            Update your AI agent's settings and behavior.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -885,10 +889,10 @@ export default function AdminPage() {
                                     <div className="p-6 space-y-6">
                                         <div className="space-y-4">
                                             <div className="space-y-2">
-                                                <Label htmlFor="name">Model Name</Label>
+                                                <Label htmlFor="name">Agent Name</Label>
                                                 <Input
                                                     id="name"
-                                                    placeholder="Enter model name"
+                                                    placeholder="Enter agent name"
                                                     value={modelData.name}
                                                     onChange={(e) =>
                                                         setModelData({ ...modelData, name: e.target.value })
@@ -911,7 +915,7 @@ export default function AdminPage() {
                                                 </div>
                                                 <Textarea
                                                     id="description"
-                                                    placeholder="Describe what your model does"
+                                                    placeholder="Describe what your agent does"
                                                     className="h-40 resize-none font-mono text-sm"
                                                     value={modelData.description}
                                                     onChange={(e) =>
@@ -921,7 +925,7 @@ export default function AdminPage() {
                                             </div>
 
                                             <div className="space-y-2">
-                                                <Label>Model Icon</Label>
+                                                <Label>Agent Icon</Label>
                                                 <div className="grid grid-cols-6 gap-2">
                                                     {availableIcons.map((icon) => {
                                                         const IconComponent = icon.icon;
@@ -1101,7 +1105,7 @@ export default function AdminPage() {
                                             Updating...
                                         </>
                                     ) : (
-                                        'Update Model'
+                                        'Update Agent'
                                     )}
                                 </Button>
                             </div>
@@ -1136,8 +1140,8 @@ export default function AdminPage() {
                     transition={{ delay: 0.3 }}
                 >
                     <TabsList>
-                        <TabsTrigger value="models">Models</TabsTrigger>
-                        <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                        <TabsTrigger value="models">Agents</TabsTrigger>
+                        <TabsTrigger value="connections">User Connections</TabsTrigger>
                     </TabsList>
                 </motion.div>
 
@@ -1205,7 +1209,7 @@ export default function AdminPage() {
                                                     >
                                                         <TableCell>
                                                             <Link
-                                                                href={`/models/explore-models?id=${model.id}`}
+                                                                href={`/agents/explore-agents?id=${model.id}`}
                                                                 target="_blank"
                                                                 className="flex items-center"
                                                             >
@@ -1220,7 +1224,7 @@ export default function AdminPage() {
                                                         </TableCell>
                                                         <TableCell className="font-medium">
                                                             <Link
-                                                                href={`/protected/models/explore-models?id=${model.id}`}
+                                                                href={`/protected/agents/explore-agents?id=${model.id}`}
                                                                 target="_blank"
                                                                 className="hover:underline"
                                                             >
@@ -1229,7 +1233,7 @@ export default function AdminPage() {
                                                         </TableCell>
                                                         <TableCell>
                                                             <Link
-                                                                href={`/protected/models/explore-models?id=${model.id}`}
+                                                                href={`/protected/agents/explore-agents?id=${model.id}`}
                                                                 target="_blank"
                                                                 className="block"
                                                             >
@@ -1238,7 +1242,7 @@ export default function AdminPage() {
                                                         </TableCell>
                                                         <TableCell>
                                                             <Link
-                                                                href={`/protected/models/explore-models?id=${model.id}`}
+                                                                href={`/protected/agents/explore-agents?id=${model.id}`}
                                                                 target="_blank"
                                                                 className="block"
                                                             >
@@ -1247,7 +1251,7 @@ export default function AdminPage() {
                                                         </TableCell>
                                                         <TableCell className="font-mono text-sm max-w-[200px] truncate">
                                                             <Link
-                                                                href={`/protected/models/explore-models?id=${model.id}`}
+                                                                href={`/protected/agents/explore-agents?id=${model.id}`}
                                                                 target="_blank"
                                                                 className="block"
                                                             >
@@ -1301,17 +1305,14 @@ export default function AdminPage() {
                     </MotionCard>
                 </TabsContent>
 
-                <TabsContent value="analytics">
+                <TabsContent value="connections" className="space-y-4">
                     <MotionCard
                         className="p-4"
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.4 }}
                     >
-                        <h2 className="text-xl font-semibold mb-4">Analytics Dashboard</h2>
-                        <p className="text-muted-foreground">
-                            Analytics features coming soon...
-                        </p>
+                        <UserConnections />
                     </MotionCard>
                 </TabsContent>
             </Tabs>
