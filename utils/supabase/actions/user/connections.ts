@@ -100,7 +100,6 @@ export async function addUserConnection(
     const arrayValues = Object.entries(keyPairs)
       .map(([key, value]) => `${key}=${value}`);
     // Store the connection key as a PostgreSQL array
-    console.log(arrayValues)
     const { data, error } = await supabase
       .from("user_connection")
       .insert({
@@ -174,7 +173,6 @@ export async function getUserEmailById(userId: string) {
       .single();
 
     if (error) {
-      console.log("User name not found for ID:", userId);
       return { data: null, error: null }; // Return null data but no error to handle gracefully
     }
     return { data, error: null };

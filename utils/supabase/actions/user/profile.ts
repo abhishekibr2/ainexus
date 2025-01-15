@@ -63,7 +63,7 @@ export async function updateProfile(data: ProfileFormValues, userId: string) {
             bio: data.bio,
         })
 
-    if (error) {console.log(error); throw error}
+    if (error) { console.log(error); throw error }
     return { success: true }
 }
 
@@ -76,7 +76,7 @@ export async function updateDisplay(data: DisplayFormValues, userId: string) {
             sidebar: data.items
         })
 
-    if (error) {console.log(error); throw error}
+    if (error) { console.log(error); throw error }
     return { success: true }
 }
 
@@ -90,7 +90,7 @@ export async function updateAppearance(data: AppearanceFormValues, userId: strin
             font: data.font
         })
 
-    if (error) {console.log(error); throw error}
+    if (error) { console.log(error); throw error }
     return { success: true }
 }
 
@@ -105,7 +105,7 @@ export async function updateAccount(data: AccountFormValues, userId: string) {
             language: data.language
         })
 
-    if (error) {console.log(error); throw error}
+    if (error) { console.log(error); throw error }
     return { success: true }
 }
 
@@ -113,10 +113,15 @@ export async function getProfile(userId: string) {
     const supabase = createClient()
     const { data, error } = await supabase
         .from('user')
-        .select('*')
+        .select()
         .eq('id', userId)
         .single()
-
-    if (error) {console.log(error); throw error}
+    if (error) {
+        const { data, error } = await supabase.from('user').insert({ id: userId })
+        if (error) {
+            console.log(error); throw error
+        }
+        return data
+    }
     return data
 }

@@ -10,7 +10,6 @@ export interface ChatMessage {
 
 export async function createUserChat(userId: string, modelId: number, firstMessage: string, assistantMessage: ChatMessage) {
     const supabase = createClient()
-    console.log({ modelId })
     try {
         const chat: ChatMessage[] = [
             {

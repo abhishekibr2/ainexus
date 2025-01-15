@@ -6,7 +6,6 @@ import { useFieldArray, useForm } from "react-hook-form"
 import { Lock } from "lucide-react"
 import { z } from "zod"
 import { useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -57,13 +56,12 @@ export function ProfileForm() {
     bio: "",
   })
   const supabase = createClient()
-  
+
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues,
     mode: "onChange",
   })
-
   useEffect(() => {
     async function initialize() {
       setIsLoading(true)
@@ -80,7 +78,7 @@ export function ProfileForm() {
       if (user?.email && user?.id) {
         setUserEmail(user.email)
         setUserId(user.id)
-        
+
         try {
           const profile = await getProfile(user.id)
           if (profile) {
@@ -103,7 +101,6 @@ export function ProfileForm() {
       }
       setIsLoading(false)
     }
-
     initialize()
   }, [form, supabase.auth])
 

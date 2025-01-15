@@ -175,8 +175,6 @@ const ModelCard = ({ model }: { model: Model }) => {
                 );
 
                 if (assignError) throw assignError;
-                console.log(data.auth.config_keys)
-                console.log(Object.keys(data.auth.config_keys))
                 // If auth is required and config keys are provided, save them
                 const { error: connectionError } = await addUserConnection(
                     user.id,
