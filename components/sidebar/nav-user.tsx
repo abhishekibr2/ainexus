@@ -27,6 +27,7 @@ import { TeamSwitcher } from "@/components/sidebar/team-switcher"
 import { getUserWorkspaces, Workspace } from "@/utils/supabase/actions/workspace/workspace"
 import { useEffect, useState } from "react"
 import { isSuperAdmin } from "@/utils/supabase/admin"
+import { signOutAction } from "@/app/actions"
 
 
 interface SerializedUser {
@@ -89,12 +90,6 @@ export function NavUser({ user }: { user: SerializedUser }) {
     }
   }, [user.id])
 
-  const handleSignOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/')
-  }
-
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -153,7 +148,7 @@ export function NavUser({ user }: { user: SerializedUser }) {
               <TeamSwitcher teams={workspaces} loading={loading} />
             </SidebarHeader>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut}>
+            <DropdownMenuItem onClick={() => { signOutAction() }}>
               <LogOut className="mr-2 size-4" />
               Sign out
             </DropdownMenuItem>
