@@ -22,14 +22,14 @@ const sidebarNavItems = [
     title: "Appearance",
     href: "/protected/profile/appearance",
   },
-  {
-    title: "Notifications",
-    href: "/protected/profile/notifications",
-  },
-  {
-    title: "Display",
-    href: "/protected/profile/display",
-  },
+  // {
+  //   title: "Notifications",
+  //   href: "/protected/profile/notifications",
+  // },
+  // {
+  //   title: "Display",
+  //   href: "/protected/profile/display",
+  // },
 ]
 
 interface SettingsLayoutProps {

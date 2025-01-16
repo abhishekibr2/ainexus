@@ -1186,37 +1186,36 @@ export default function ExploreModels() {
 
                 if (user) {
                     const fetchedModels = await getModels(user.id);
-                    
-                    // Get user's workspaces for permission checking
-                    const userWorkspaces = await getUserWorkspaces(user.id);
-                    const workspaceIds = userWorkspaces.map((w: { id: number }) => w.id);
+
+                    // Get current workspace from localStorage
+                    const storedWorkspace = localStorage.getItem('selectedWorkspace');
+                    const currentWorkspace = storedWorkspace ? JSON.parse(storedWorkspace) : null;
+                    const currentWorkspaceId = currentWorkspace?.id;
 
                     // Filter models based on permissions
                     const accessibleModels = fetchedModels.filter(model => {
                         const permission = model.permission || { type: 'global' };
-                        
+
                         // If global type, everyone has access
                         if (permission.type === 'global') {
                             return true;
                         }
-                        
+
                         // For restricted type, check user and workspace access
                         if (permission.type === 'restricted') {
                             // Check direct user access
                             if (permission.restricted_users?.includes(user.id)) {
                                 return true;
                             }
-                            
-                            // Check workspace access
+
+                            // Check workspace access using current workspace
                             if (permission.restricted_to?.includes('workspace')) {
-                                return permission.restricted_workspaces?.some(
-                                    (wsId: number) => workspaceIds.includes(wsId)
-                                ) || false;
+                                return currentWorkspaceId && permission.restricted_workspaces?.includes(currentWorkspaceId);
                             }
-                            
+
                             return false;
                         }
-                        
+
                         return false;
                     });
 

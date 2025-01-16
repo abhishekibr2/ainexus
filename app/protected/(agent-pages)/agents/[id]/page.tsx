@@ -111,11 +111,12 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                             
                             // Check workspace-level access if user doesn't have direct access
                             if (!hasPermission && permission.restricted_to?.includes('workspace')) {
-                                const userWorkspaces = await getUserWorkspaces(user.id);
-                                const workspaceIds = userWorkspaces.map((w: { id: number }) => w.id);
-                                hasPermission = permission.restricted_workspaces?.some(
-                                    (wsId: number) => workspaceIds.includes(wsId)
-                                ) || false;
+                                // Get current workspace from localStorage
+                                const storedWorkspace = localStorage.getItem('selectedWorkspace');
+                                const currentWorkspace = storedWorkspace ? JSON.parse(storedWorkspace) : null;
+                                const currentWorkspaceId = currentWorkspace?.id;
+                                
+                                hasPermission = currentWorkspaceId && permission.restricted_workspaces?.includes(currentWorkspaceId);
                             }
                         }
 

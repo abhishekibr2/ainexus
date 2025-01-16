@@ -41,16 +41,37 @@ interface TeamSwitcherProps {
 export function TeamSwitcher({ teams, loading = false }: TeamSwitcherProps) {
   const router = useRouter()
   const [open, setOpen] = React.useState(false)
-  const [selectedTeam, setSelectedTeam] = React.useState<WorkspaceData | null>(
-    teams[0] || null
-  )
+  const [selectedTeam, setSelectedTeam] = React.useState<WorkspaceData | null>(null)
 
-  // Update selected team when teams change
+  // Initialize from localStorage and teams prop
   React.useEffect(() => {
-    if (teams.length > 0 && !selectedTeam) {
-      setSelectedTeam(teams[0])
+    const storedTeam = localStorage.getItem('selectedWorkspace')
+    if (storedTeam) {
+      const parsedTeam = JSON.parse(storedTeam)
+      // Verify the stored team still exists in the available teams
+      const teamExists = teams.some(team => team.id === parsedTeam.id)
+      if (teamExists) {
+        setSelectedTeam(parsedTeam)
+        return
+      }
     }
-  }, [teams, selectedTeam])
+    // Fallback to first team if no stored team or stored team no longer exists
+    if (teams.length > 0) {
+      setSelectedTeam(teams[0])
+      localStorage.setItem('selectedWorkspace', JSON.stringify(teams[0]))
+    }
+  }, [teams])
+
+  // Update localStorage when selection changes
+  const handleTeamSelect = (team: WorkspaceData) => {
+    setSelectedTeam(team)
+    localStorage.setItem('selectedWorkspace', JSON.stringify(team))
+    setOpen(false)
+    // Dispatch custom event for workspace change
+    window.dispatchEvent(new CustomEvent('workspaceChanged', { detail: team }))
+    // Full page refresh
+    window.location.reload()
+  }
 
   if (loading) {
     return (
@@ -87,10 +108,7 @@ export function TeamSwitcher({ teams, loading = false }: TeamSwitcherProps) {
                 {teams.map((team) => (
                   <CommandItem
                     key={team.id}
-                    onSelect={() => {
-                      setSelectedTeam(team)
-                      setOpen(false)
-                    }}
+                    onSelect={() => handleTeamSelect(team)}
                     className="text-sm"
                   >
                     <Building2 className="mr-2 h-4 w-4 flex-shrink-0" />
