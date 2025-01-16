@@ -22,6 +22,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Skeleton } from "../ui/skeleton"
+import Link from "next/link";
 
 interface WorkspaceData {
   id: number;
@@ -110,15 +111,16 @@ export function TeamSwitcher({ teams, loading = false }: TeamSwitcherProps) {
           <CommandSeparator />
           <CommandList>
             <CommandGroup>
-              <CommandItem
-                onSelect={() => {
-                  router.push('/protected/workspaces')
-                  setOpen(false)
-                }}
-              >
-                <Settings2 className="mr-2 h-5 w-5 flex-shrink-0" />
-                Manage Workspaces
-              </CommandItem>
+              <Link href="/protected/workspaces">
+                <CommandItem
+                  onSelect={() => {
+                    setOpen(false)
+                  }}
+                >
+                  <Settings2 className="mr-2 h-5 w-5 flex-shrink-0" />
+                  Manage Workspaces
+                </CommandItem>
+              </Link>
             </CommandGroup>
           </CommandList>
         </Command>

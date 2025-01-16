@@ -10,7 +10,20 @@ export async function getUserWorkspaces(userId: string) {
             .from('workspaces')
             .select('*')
             .or(`owner.eq.${userId},members.cs.{${userId}}`);
-
+        if (workspaces && workspaces.length === 0) {
+            const { data: workspace, error: workspaceError } = await supabase
+                .from('workspaces')
+                .insert({
+                    name: "Default Workspace",
+                    description: "Default workspace for user",
+                    owner: userId,
+                    members: [userId]
+                })
+                .select()
+            if (workspaceError) throw workspaceError;
+            console.log(workspace)
+            return workspace;
+        }
         if (error) throw error;
         return workspaces || [];
     } catch (error) {
@@ -33,7 +46,7 @@ export async function createWorkspace(name: string, description?: string) {
             name,
             description,
             owner: user.id,
-            members: [user.id] // Add creator as first member
+            members: [user.id]
         })
         .select()
         .single();

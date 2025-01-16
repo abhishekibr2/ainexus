@@ -104,7 +104,7 @@ export function AddConnectionDialog({ onAdd, applications }: AddConnectionDialog
                 .filter(([_, value]) => value !== undefined && value !== null)
                 .map(([key, value]) => `${key}=${value}`)
                 .map(str => `"${str}"`); // Wrap each element in quotes
-            
+
             const connectionKeyString = `{${connectionKeyArray.join(',')}}`;  // PostgreSQL array format
 
             await onAdd({
@@ -112,7 +112,7 @@ export function AddConnectionDialog({ onAdd, applications }: AddConnectionDialog
                 connection_name: connectionName.trim(),
                 connection_key: connectionKeyString,
             });
-            
+
             // Reset form and close dialog only on success
             setIsOpen(false);
         } catch (error) {
@@ -137,7 +137,7 @@ export function AddConnectionDialog({ onAdd, applications }: AddConnectionDialog
     return (
         <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
             <AlertDialogTrigger asChild>
-                <Button>Add Connection</Button>
+                <Button>Add New Connection</Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="max-w-2xl">
                 <AlertDialogHeader>
@@ -227,8 +227,8 @@ export function AddConnectionDialog({ onAdd, applications }: AddConnectionDialog
                 `}</style>
                 <AlertDialogFooter>
                     <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
-                        onClick={handleAdd} 
+                    <AlertDialogAction
+                        onClick={handleAdd}
                         disabled={isSubmitting || !selectedAppId}
                     >
                         {isSubmitting ? 'Adding...' : 'Add Connection'}

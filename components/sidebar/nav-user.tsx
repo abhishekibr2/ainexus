@@ -21,14 +21,12 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
 } from "@/components/ui/sidebar"
-import { createClient } from "@/utils/supabase/client"
-import { useRouter } from "next-nprogress-bar";
 import { TeamSwitcher } from "@/components/sidebar/team-switcher"
 import { getUserWorkspaces, Workspace } from "@/utils/supabase/actions/workspace/workspace"
 import { useEffect, useState } from "react"
 import { isSuperAdmin } from "@/utils/supabase/admin"
 import { signOutAction } from "@/app/actions"
-
+import { useRouter } from "next/navigation"
 
 interface SerializedUser {
   id: string;
@@ -47,9 +45,11 @@ export function NavUser({ user }: { user: SerializedUser }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    console.log("NavUser useEffect")
     const loadWorkspaces = async () => {
       try {
         const workspacesData = await getUserWorkspaces(user.id)
+        console.log({ workspacesData })
         setWorkspaces(workspacesData)
       } catch (error) {
         console.error('Error loading workspaces:', error)

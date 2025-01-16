@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { getModels } from "@/utils/supabase/actions/assistant/assistant";
 import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { toast, useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, Clock, Key, Check, ExternalLink, X, Info, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,10 +22,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
-import { getUserConnections } from "@/utils/supabase/actions/user/connections";
+import { createUserConnection, getUserConnections } from "@/utils/supabase/actions/user/connections";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { User } from "@supabase/supabase-js";
+import { AddConnectionDialog } from "../../connections/components/add-connection-dialog";
+import { getApplications } from "@/utils/supabase/actions/user/connections";
 
 // Step form schema
 const modelConfigSchema = z.object({
@@ -38,7 +40,7 @@ const modelConfigSchema = z.object({
     auth: z.object({
         user_connection_id: z.number().optional(),
         config_keys: z.record(z.string(), z.string()).optional()
-    }),
+    }).optional(),
     // Step 3: Advanced Settings
     advanced: z.object({
         override_instructions: z.string().optional(),
@@ -160,7 +162,17 @@ const ModelCard = ({ model }: { model: Model }) => {
             }
 
             // First assign model to user with additional configuration
-            if (model.is_auth && data.auth?.user_connection_id) {
+            if (model.is_auth) {
+                if (!data.auth?.user_connection_id) {
+                    toast({
+                        title: "Error",
+                        description: "Please select a connection for this agent",
+                        variant: "destructive",
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+
                 const { data: assignedModel, error: assignError } = await assignModelToUser(
                     user.id,
                     model.app_id,
@@ -172,30 +184,37 @@ const ModelCard = ({ model }: { model: Model }) => {
                 );
 
                 if (assignError) throw assignError;
-
-                toast({
-                    title: "Success",
-                    description: "Model configured and added successfully",
-                });
-
-                // Dispatch custom event with full model data
-                const event = new CustomEvent('modelAssigned', {
-                    detail: {
-                        assistant_id: model.id,
-                        assistant_name: data.basic?.override_name || model.name,
-                        app_id: model.app_id
-                    }
-                });
-                window.dispatchEvent(event);
-
-                setShowConfigForm(false);
             } else {
-                toast({
-                    title: "Error",
-                    description: "Please select a connection for this agent",
-                    variant: "destructive",
-                });
+                // For non-auth models, proceed without connection
+                const { data: assignedModel, error: assignError } = await assignModelToUser(
+                    user.id,
+                    model.app_id,
+                    data.basic?.override_name || model.name,
+                    model.id,
+                    data.basic?.override_description,
+                    data.advanced?.override_instructions,
+                    undefined // No connection needed for non-auth models
+                );
+
+                if (assignError) throw assignError;
             }
+
+            toast({
+                title: "Success",
+                description: "Model configured and added successfully",
+            });
+
+            // Dispatch custom event with full model data
+            const event = new CustomEvent('modelAssigned', {
+                detail: {
+                    assistant_id: model.id,
+                    assistant_name: data.basic?.override_name || model.name,
+                    app_id: model.app_id
+                }
+            });
+            window.dispatchEvent(event);
+
+            setShowConfigForm(false);
         } catch (error: any) {
             toast({
                 title: "Error",
@@ -347,10 +366,11 @@ const ModelCard = ({ model }: { model: Model }) => {
 const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit: (data: ModelConfigValues) => void; onCancel: () => void }) => {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const totalSteps = model.is_auth ? 3 : 2;
+    const totalSteps = model.is_auth ? 3 : 2; // Only 2 steps for non-auth models
     const [availableConnections, setAvailableConnections] = useState<Connection[]>([]);
     const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
     const [connectionFieldValues, setConnectionFieldValues] = useState<Record<string, string>>({});
+    const [applications, setApplications] = useState<{ id: number; name: string; fields: string[] }[]>([]);
 
     const form = useForm<ModelConfigValues>({
         resolver: zodResolver(modelConfigSchema),
@@ -360,29 +380,78 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
         }
     });
 
-    // Fetch available connections when the form opens
+    // Fetch available connections and applications when the form opens
     useEffect(() => {
-        const fetchConnections = async () => {
+        const fetchData = async () => {
             if (!model.is_auth) return;
-            
+
             try {
                 const supabase = createClient();
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) return;
 
-                const { data: connections } = await getUserConnections(user.id);
-                if (connections) {
+                const [connectionsResult, applicationsResult] = await Promise.all([
+                    getUserConnections(user.id),
+                    getApplications()
+                ]);
+
+                if (connectionsResult.data) {
                     // Filter connections for this app type
-                    const appConnections = connections.filter(conn => conn.app_id === model.app_id);
+                    const appConnections = connectionsResult.data.filter(conn => conn.app_id === model.app_id);
                     setAvailableConnections(appConnections);
                 }
+
+                if (applicationsResult.data) {
+                    setApplications(applicationsResult.data);
+                }
             } catch (error) {
-                console.error('Error fetching connections:', error);
+                console.error('Error fetching data:', error);
             }
         };
 
-        fetchConnections();
+        fetchData();
     }, [model]);
+
+    // Handle new connection added
+    const handleAddConnection = async (newConnection: { app_id: number; connection_name: string; connection_key: string }) => {
+        try {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id;
+
+            if (!userId) {
+                throw new Error("User not authenticated");
+            }
+
+            const { error } = await createUserConnection(
+                userId,
+                newConnection.app_id,
+                newConnection.connection_name,
+                newConnection.connection_key
+            );
+
+            if (error) throw error;
+
+            // Refresh connections after adding new one
+            const { data: connections } = await getUserConnections(userId);
+            if (connections) {
+                const appConnections = connections.filter(conn => conn.app_id === model.app_id);
+                setAvailableConnections(appConnections);
+            }
+
+            toast({
+                title: 'Connection added successfully',
+                description: 'Your new connection has been created.',
+            });
+        } catch (err) {
+            console.error('Error adding connection:', err);
+            toast({
+                title: 'Failed to add connection',
+                description: 'There was an error creating your connection.',
+                variant: 'destructive',
+            });
+        }
+    };
 
     // Handle connection selection
     const handleConnectionChange = (value: string) => {
@@ -405,20 +474,264 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
         try {
             await onSubmit({
                 ...data,
-                auth: {
+                auth: model.is_auth ? {
                     ...data.auth,
                     user_connection_id: selectedConnectionId || undefined
-                }
+                } : undefined
             });
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // Prevent form submission on enter key
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && step !== totalSteps) {
-            e.preventDefault();
+    // Get the current step content
+    const getCurrentStepContent = () => {
+        switch (step) {
+            case 1:
+                return (
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="space-y-4"
+                    >
+                        <div className="text-center">
+                            <h2 className="text-lg font-semibold">Basic Configuration</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Customize the basic settings for your agent
+                            </p>
+                        </div>
+                        <FormField
+                            control={form.control}
+                            name="basic.override_name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Override Name (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder={model.name} {...field} />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Customize the display name for this agent
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="basic.override_description"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Override Description (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            placeholder={model.description}
+                                            className="min-h-[100px]"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Customize the description for this agent
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </motion.div>
+                );
+            case 2:
+                // Return auth step for auth models, advanced step for non-auth models
+                return model.is_auth ? (
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="space-y-4"
+                    >
+                        <div className="text-center">
+                            <h2 className="text-lg font-semibold">Authentication Required</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Configure your connection settings
+                            </p>
+                        </div>
+                        <div className="rounded-lg border p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">Select Connection</Label>
+                                <AddConnectionDialog
+                                    applications={[{
+                                        id: model.app_id,
+                                        name: model.name,
+                                        fields: model.fields || []
+                                    }]}
+                                    onAdd={handleAddConnection}
+                                />
+                            </div>
+                            <FormField
+                                control={form.control}
+                                name="auth.config_keys"
+                                render={({ field, fieldState }) => (
+                                    <FormItem className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Select
+                                                value={selectedConnectionId?.toString() || ""}
+                                                onValueChange={handleConnectionChange}
+                                            >
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue placeholder="Choose a connection to configure this agent" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {availableConnections.map((conn) => (
+                                                        <SelectItem
+                                                            key={conn.id}
+                                                            value={conn.id.toString()}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                {conn.id === selectedConnectionId && (
+                                                                    <Check className="h-4 w-4 text-green-500" />
+                                                                )}
+                                                                {conn.connection_name}
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        {availableConnections.length === 0 && (
+                                            <div className="text-sm text-muted-foreground text-center py-2">
+                                                No connections available. Create a new connection to proceed.
+                                            </div>
+                                        )}
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                    </motion.div>
+                ) : (
+                    // Advanced settings for non-auth models
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="space-y-4"
+                    >
+                        <div className="text-center">
+                            <h2 className="text-lg font-semibold">Advanced Settings</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Configure advanced options for your agent
+                            </p>
+                        </div>
+                        <FormField
+                            control={form.control}
+                            name="advanced.override_instructions"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Override Instructions (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            placeholder="Enter custom instructions for the agent..."
+                                            className="min-h-[100px]"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Provide custom instructions for how the agent should behave
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="advanced.permission_scope"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Permission Scope</FormLabel>
+                                    <Select
+                                        value={field.value}
+                                        onValueChange={field.onChange}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a permission scope" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="private">Private</SelectItem>
+                                            <SelectItem value="team">Team</SelectItem>
+                                            <SelectItem value="public">Public</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                        Control who can access this agent
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </motion.div>
+                );
+            case 3:
+                return (
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="space-y-4"
+                    >
+                        <div className="text-center">
+                            <h2 className="text-lg font-semibold">Advanced Settings</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Configure advanced options for your agent
+                            </p>
+                        </div>
+                        <FormField
+                            control={form.control}
+                            name="advanced.override_instructions"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Override Instructions (Optional)</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            placeholder="Enter custom instructions for the agent..."
+                                            className="min-h-[100px]"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Provide custom instructions for how the agent should behave
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="advanced.permission_scope"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Permission Scope</FormLabel>
+                                    <Select
+                                        value={field.value}
+                                        onValueChange={field.onChange}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a permission scope" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="private">Private</SelectItem>
+                                            <SelectItem value="team">Team</SelectItem>
+                                            <SelectItem value="public">Public</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                        Control who can access this agent
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </motion.div>
+                );
+            default:
+                return null;
         }
     };
 
@@ -460,258 +773,15 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
             </div>
 
             <Form {...form}>
-                <form onSubmit={form.handleSubmit(onFormSubmit)} onKeyDown={handleKeyDown} className="space-y-6">
-                    {/* Step 1: Basic Configuration */}
-                    {step === 1 && (
-                        <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            className="space-y-4"
-                        >
-                            <div className="text-center">
-                                <h2 className="text-lg font-semibold">Basic Configuration</h2>
-                                <p className="text-sm text-muted-foreground">
-                                    Customize the basic settings for your agent
-                                </p>
-                            </div>
-                            <FormField
-                                control={form.control}
-                                name="basic.override_name"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Override Name (Optional)</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder={model.name} {...field} />
-                                        </FormControl>
-                                        <FormDescription>
-                                            Customize the display name for this agent
-                                        </FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="basic.override_description"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Override Description (Optional)</FormLabel>
-                                        <FormControl>
-                                            <Textarea
-                                                placeholder={model.description}
-                                                className="min-h-[100px]"
-                                                {...field}
-                                            />
-                                        </FormControl>
-                                        <FormDescription>
-                                            Customize the description for this agent
-                                        </FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </motion.div>
-                    )}
-
-                    {/* Step 2: Authentication (if required) */}
-                    {step === 2 && model.is_auth && (
-                        <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            className="space-y-4"
-                        >
-                            <div className="text-center">
-                                <h2 className="text-lg font-semibold">Authentication Required</h2>
-                                <p className="text-sm text-muted-foreground">
-                                    Configure your connection settings
-                                </p>
-                            </div>
-                            <div className="rounded-lg border p-4 space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="auth.config_keys"
-                                    render={({ field, fieldState }) => (
-                                        <FormItem className="space-y-4">
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">Select Connection</Label>
-                                                <Select
-                                                    value={selectedConnectionId?.toString() || ""}
-                                                    onValueChange={handleConnectionChange}
-                                                >
-                                                    <SelectTrigger className="w-full">
-                                                        <SelectValue placeholder="Choose a connection to configure this agent" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {availableConnections.map((conn) => (
-                                                            <SelectItem 
-                                                                key={conn.id} 
-                                                                value={conn.id.toString()}
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    {conn.id === selectedConnectionId && (
-                                                                        <Check className="h-4 w-4 text-green-500" />
-                                                                    )}
-                                                                    {conn.connection_name}
-                                                                </div>
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                                                    <Info className="h-4 w-4" />
-                                                    Select a connection to configure this agent's authentication
-                                                </div>
-                                            </div>
-
-                                            {selectedConnectionId ? (
-                                                <div className="space-y-3">
-                                                    {model.fields?.map((fieldName, index) => (
-                                                        <motion.div
-                                                            key={index}
-                                                            initial={{ opacity: 0, x: -10 }}
-                                                            animate={{ opacity: 1, x: 0 }}
-                                                            transition={{ delay: index * 0.1 }}
-                                                        >
-                                                            <div className="flex items-center justify-between mb-1.5">
-                                                                <Label className="text-sm font-medium flex items-center gap-2">
-                                                                    <Key className="h-4 w-4 text-muted-foreground" />
-                                                                    {fieldName}
-                                                                </Label>
-                                                                <div className="text-xs text-muted-foreground">
-                                                                    Managed via Connections
-                                                                </div>
-                                                            </div>
-                                                            <div
-                                                                className="relative rounded-md border bg-muted/30 shadow-sm cursor-not-allowed"
-                                                                title="This value is managed through the Connections page"
-                                                            >
-                                                                <div className="flex items-center">
-                                                                    <div className="w-full px-3 py-2 text-sm">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <Check className="h-4 w-4 text-green-500" />
-                                                                            <span className="font-medium text-muted-foreground">
-                                                                                {connectionFieldValues[fieldName]}
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="border-l px-3 py-2">
-                                                                        <Lock className="h-4 w-4 text-muted-foreground" />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </motion.div>
-                                                    ))}
-                                                    <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground bg-muted/50 rounded-md p-2">
-                                                        <Info className="h-4 w-4 flex-shrink-0" />
-                                                        <span>
-                                                            These values are managed through the Connections page.
-                                                            To modify them, please visit the{" "}
-                                                            <Link href="/protected/connections" className="text-blue-500 hover:underline">Connections</Link>
-                                                            {" "}section.
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <motion.div
-                                                    initial={{ opacity: 0, y: 5 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    className="flex flex-col items-center justify-center py-6 text-center space-y-4"
-                                                >
-                                                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                                                        <Settings className="h-6 w-6 text-muted-foreground" />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <h3 className="font-semibold">No Connection Selected</h3>
-                                                        <p className="text-sm text-muted-foreground max-w-sm">
-                                                            Select a connection above to configure this agent's authentication settings
-                                                        </p>
-                                                    </div>
-                                                    <Link href="/protected/connections">
-                                                        <Button variant="outline" size="sm">
-                                                            Manage Connections
-                                                        </Button>
-                                                    </Link>
-                                                </motion.div>
-                                            )}
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* Step 3 (or 2 if no auth): Advanced Settings */}
-                    {step === (model.is_auth ? 3 : 2) && (
-                        <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            className="space-y-4"
-                        >
-                            <div className="text-center">
-                                <h2 className="text-lg font-semibold">Advanced Settings</h2>
-                                <p className="text-sm text-muted-foreground">
-                                    Configure advanced options for your agent
-                                </p>
-                            </div>
-                            <FormField
-                                control={form.control}
-                                name="advanced.override_instructions"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Override Instructions (Optional)</FormLabel>
-                                        <FormControl>
-                                            <Textarea
-                                                placeholder="Enter custom instructions for the agent..."
-                                                className="min-h-[100px]"
-                                                {...field}
-                                            />
-                                        </FormControl>
-                                        <FormDescription>
-                                            Provide custom instructions for how the agent should behave
-                                        </FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="advanced.permission_scope"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Permission Scope</FormLabel>
-                                        <Select
-                                            value={field.value}
-                                            onValueChange={field.onChange}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select a permission scope" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="private">Private</SelectItem>
-                                                <SelectItem value="team">Team</SelectItem>
-                                                <SelectItem value="public">Public</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormDescription>
-                                            Control who can access this agent
-                                        </FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </motion.div>
-                    )}
+                <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-6">
+                    {getCurrentStepContent()}
 
                     {/* Navigation Buttons */}
                     <div className="flex justify-between pt-4">
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={(e) => {
-                                e.preventDefault();
+                            onClick={() => {
                                 if (step === 1) {
                                     onCancel();
                                 } else {
@@ -958,7 +1028,7 @@ const ModelSettingsDialog = ({
                     if (modelData?.user_connection_id) {
                         setSelectedConnectionId(modelData.user_connection_id);
                         // Find the connection details
-                        const currentConnection = appConnections.find(conn => 
+                        const currentConnection = appConnections.find(conn =>
                             conn.id === modelData.user_connection_id);
                         if (currentConnection?.parsedConnectionKeys) {
                             setSelectedConnection(currentConnection);
@@ -1021,7 +1091,7 @@ const ModelSettingsDialog = ({
                 if (modelData?.user_connection_id) {
                     setSelectedConnectionId(modelData.user_connection_id);
                     // Find the connection details
-                    const currentConnection = appConnections.find(conn => 
+                    const currentConnection = appConnections.find(conn =>
                         conn.id === modelData.user_connection_id);
                     if (currentConnection?.parsedConnectionKeys) {
                         setSelectedConnection(currentConnection);
@@ -1064,9 +1134,9 @@ const ModelSettingsDialog = ({
                 </DialogHeader>
                 <div className="flex items-center gap-2 mb-4">
                     {isAdmin && (
-                        <AccessibleVariablesDialog 
-                            user={user} 
-                            model={model} 
+                        <AccessibleVariablesDialog
+                            user={user}
+                            model={model}
                             connectionKeys={connectionFieldValues}
                             selectedConnection={selectedConnection}
                         />
