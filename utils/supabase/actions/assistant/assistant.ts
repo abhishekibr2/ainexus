@@ -22,6 +22,12 @@ const modelFormSchema = z.object({
     code: z.string().optional(),
     created_by: z.string().uuid(),
     app_id: z.number().int().nullable(),
+    permission: z.object({
+        type: z.enum(['global', 'restricted']),
+        restricted_to: z.array(z.enum(['user', 'workspace'])).optional(),
+        restricted_users: z.array(z.string()).optional(),
+        restricted_workspaces: z.array(z.number()).optional()
+    }).optional(),
 });
 
 type ModelFormValues = Omit<z.infer<typeof modelFormSchema>, 'id' | 'created_at' | 'created_by'>;
@@ -31,6 +37,16 @@ export async function createModel(data: ModelFormValues, userId: string) {
 
     // First validate the data
     const validatedData = modelFormSchema.omit({ id: true, created_at: true, created_by: true }).parse(data);
+
+    // Always store the permission object with proper type and empty arrays for global
+    const permission = validatedData.permission?.type === 'global' 
+        ? {
+            type: 'global',
+            restricted_to: [],
+            restricted_users: [],
+            restricted_workspaces: []
+        } 
+        : validatedData.permission;
 
     const { error } = await supabase
         .from('assistant')
@@ -42,6 +58,7 @@ export async function createModel(data: ModelFormValues, userId: string) {
             code: validatedData.code,
             created_by: userId,
             app_id: validatedData.app_id,
+            permission: permission
         })
 
     if (error) {
@@ -58,6 +75,16 @@ export async function updateModel(modelId: number, data: ModelFormValues, userId
     // First validate the data
     const validatedData = modelFormSchema.omit({ id: true, created_at: true, created_by: true }).parse(data);
 
+    // Always store the permission object with proper type and empty arrays for global
+    const permission = validatedData.permission?.type === 'global' 
+        ? {
+            type: 'global',
+            restricted_to: [],
+            restricted_users: [],
+            restricted_workspaces: []
+        } 
+        : validatedData.permission;
+
     const { error } = await supabase
         .from('assistant')
         .update({
@@ -67,6 +94,7 @@ export async function updateModel(modelId: number, data: ModelFormValues, userId
             is_auth: validatedData.is_auth,
             code: validatedData.code,
             app_id: validatedData.app_id,
+            permission: permission
         })
         .eq('id', modelId)
         .eq('created_by', userId) // Ensure user owns the model

@@ -19,7 +19,9 @@ import {
 import { FileText, Code2, Settings, Plus, Wand2, Loader2, X } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { getApplications, getModels, createModel } from "@/utils/supabase/actions/assistant/assistant";
-import { NewModel, availableIcons, sampleDescriptions } from "./types";
+import { NewModel, availableIcons, sampleDescriptions, RestrictedPermissionOption } from "./types";
+import { UserSearch } from "./user-search";
+import { WorkspaceSearch } from "./workspace-search";
 
 interface AddModelDialogProps {
     userId: string | null;
@@ -30,10 +32,16 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
     const [newModel, setNewModel] = useState<NewModel>({
         name: "",
         description: "",
-        icon: availableIcons[0].id,
+        icon: "brain",
         is_auth: false,
         code: "",
-        app_id: 0,
+        app_id: null,
+        permission: {
+            type: 'global',
+            restricted_to: [],
+            restricted_users: [],
+            restricted_workspaces: []
+        }
     });
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [appOptions, setAppOptions] = useState<Array<{ id: number; name: string; description: string; auth_required: boolean; fields: string[] }>>([]);
@@ -67,10 +75,16 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
         setNewModel({
             name: "",
             description: "",
-            icon: availableIcons[0].id,
+            icon: "brain",
             is_auth: false,
             code: "",
-            app_id: 0,
+            app_id: null,
+            permission: {
+                type: 'global',
+                restricted_to: [],
+                restricted_users: [],
+                restricted_workspaces: []
+            }
         });
     };
 
@@ -88,9 +102,20 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
             newModel.app_id = null;
         }
 
+        // Ensure permission field is properly structured
+        const modelToSubmit = {
+            ...newModel,
+            permission: {
+                type: newModel.permission?.type || 'global',
+                restricted_to: newModel.permission?.type === 'restricted' ? (newModel.permission?.restricted_to || []) : [],
+                restricted_users: newModel.permission?.type === 'restricted' ? (newModel.permission?.restricted_users || []) : [],
+                restricted_workspaces: newModel.permission?.type === 'restricted' ? (newModel.permission?.restricted_workspaces || []) : []
+            }
+        };
+
         try {
             setIsSubmitting(true);
-            await createModel(newModel, userId);
+            await createModel(modelToSubmit, userId);
 
             // Refresh the models list
             const updatedModels = await getModels(userId);
@@ -350,6 +375,139 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
                                                     </div>
                                                 </div>
                                             )}
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-6 border-t">
+                                        <div className="bg-muted/30 rounded-lg p-4">
+                                                        <div className="space-y-4">
+                                                            <div>
+                                                    <h3 className="text-base font-semibold mb-4">Permission Settings</h3>
+                                                                <Label className="text-sm font-medium">Permission Type</Label>
+                                                                <div className="flex items-center gap-4 mt-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <input
+                                                                            type="radio"
+                                                                            id="global"
+                                                                            name="permission_type"
+                                                                            value="global"
+                                                                            checked={newModel.permission.type === 'global'}
+                                                                            onChange={(e) => setNewModel({
+                                                                                ...newModel,
+                                                                                permission: {
+                                                                                    type: 'global',
+                                                                                    restricted_to: [],
+                                                                                    restricted_users: [],
+                                                                                    restricted_workspaces: []
+                                                                                }
+                                                                            })}
+                                                                            className="h-4 w-4"
+                                                                        />
+                                                                        <Label htmlFor="global" className="text-sm font-normal">Global</Label>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <input
+                                                                            type="radio"
+                                                                            id="restricted"
+                                                                            name="permission_type"
+                                                                            value="restricted"
+                                                                            checked={newModel.permission.type === 'restricted'}
+                                                                            onChange={(e) => setNewModel({
+                                                                                ...newModel,
+                                                                                permission: {
+                                                                                    ...newModel.permission,
+                                                                                    type: 'restricted'
+                                                                                }
+                                                                            })}
+                                                                            className="h-4 w-4"
+                                                                        />
+                                                                        <Label htmlFor="restricted" className="text-sm font-normal">Restricted</Label>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {newModel.permission.type === 'restricted' && (
+                                                                <div>
+                                                                    <Label className="text-sm font-medium">Restrict Access To</Label>
+                                                                    <div className="flex items-center gap-4 mt-2">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                id="user"
+                                                                                checked={newModel.permission.restricted_to?.includes('user')}
+                                                                                onChange={(e) => {
+                                                                                    const currentRestrictions = newModel.permission.restricted_to || [];
+                                                                                    const newRestrictions = e.target.checked
+                                                                                        ? [...currentRestrictions, 'user' as RestrictedPermissionOption]
+                                                                                        : currentRestrictions.filter(r => r !== 'user');
+                                                                                    setNewModel({
+                                                                                        ...newModel,
+                                                                                        permission: {
+                                                                                            ...newModel.permission,
+                                                                                            restricted_to: newRestrictions
+                                                                                        }
+                                                                                    });
+                                                                                }}
+                                                                                className="h-4 w-4"
+                                                                            />
+                                                                            <Label htmlFor="user" className="text-sm font-normal">User</Label>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                id="workspace"
+                                                                                checked={newModel.permission.restricted_to?.includes('workspace')}
+                                                                                onChange={(e) => {
+                                                                                    const currentRestrictions = newModel.permission.restricted_to || [];
+                                                                                    const newRestrictions = e.target.checked
+                                                                                        ? [...currentRestrictions, 'workspace' as RestrictedPermissionOption]
+                                                                                        : currentRestrictions.filter(r => r !== 'workspace');
+                                                                                    setNewModel({
+                                                                                        ...newModel,
+                                                                                        permission: {
+                                                                                            ...newModel.permission,
+                                                                                            restricted_to: newRestrictions
+                                                                                        }
+                                                                                    });
+                                                                                }}
+                                                                                className="h-4 w-4"
+                                                                            />
+                                                                            <Label htmlFor="workspace" className="text-sm font-normal">Workspace</Label>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {newModel.permission.type === 'restricted' && newModel.permission.restricted_to?.includes('user') && (
+                                                                <div className="mt-4">
+                                                                    <UserSearch
+                                                                        selectedUserIds={newModel.permission.restricted_users || []}
+                                                                        onUserSelect={(users) => setNewModel({
+                                                                            ...newModel,
+                                                                            permission: {
+                                                                                ...newModel.permission,
+                                                                                restricted_users: users
+                                                                            }
+                                                                        })}
+                                                                    />
+                                                                </div>
+                                                            )}
+
+                                                            {newModel.permission.type === 'restricted' && newModel.permission.restricted_to?.includes('workspace') && (
+                                                                <div className="mt-4">
+                                                                    <WorkspaceSearch
+                                                                        selectedWorkspaceIds={newModel.permission.restricted_workspaces || []}
+                                                                        onWorkspaceSelect={(workspaces) => setNewModel({
+                                                                            ...newModel,
+                                                                            permission: {
+                                                                                ...newModel.permission,
+                                                                                restricted_workspaces: workspaces
+                                                                            }
+                                                                        })}
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                         </div>
                                     </div>
                                 </div>
