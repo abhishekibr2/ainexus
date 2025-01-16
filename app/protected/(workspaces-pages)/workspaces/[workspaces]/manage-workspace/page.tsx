@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, Users2, Settings2, Trash2, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Workspace, getWorkspaceById, updateWorkspaceDetails, deleteWorkspaceById } from "@/utils/supabase/actions/workspace/workspace"
+import { Workspace, getWorkspaceById, updateWorkspaceDetails, deleteWorkspaceById, addWorkspaceMember } from "@/utils/supabase/actions/workspace/workspace"
 import { useRouter } from "next-nprogress-bar"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -24,6 +24,15 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
 
 // Custom event for workspace updates
 const WORKSPACE_DELETED_EVENT = 'workspaceDeleted'
@@ -37,6 +46,9 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
     const [name, setName] = useState("")
     const [description, setDescription] = useState("")
     const router = useRouter()
+    const [inviteEmail, setInviteEmail] = useState("")
+    const [isInviting, setIsInviting] = useState(false)
+    const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
 
     useEffect(() => {
         const loadWorkspace = async () => {
@@ -86,13 +98,13 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
         setIsDeleting(true)
         try {
             await deleteWorkspaceById(resolvedParams.workspaces)
-            
+
             // Dispatch custom event to refresh workspaces in sidebar
             const event = new CustomEvent(WORKSPACE_DELETED_EVENT, {
                 detail: { workspaceId: resolvedParams.workspaces }
             })
             window.dispatchEvent(event)
-            
+
             toast({
                 title: "Workspace deleted successfully",
                 variant: "default"
@@ -105,6 +117,36 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
                 variant: "destructive"
             })
             setIsDeleting(false)
+        }
+    }
+
+    const handleInviteMember = async () => {
+        if (!inviteEmail) {
+            toast({
+                title: "Please enter an email address",
+                variant: "destructive"
+            })
+            return
+        }
+
+        setIsInviting(true)
+        try {
+            await addWorkspaceMember(Number(resolvedParams.workspaces), inviteEmail)
+            toast({
+                title: "Member invited successfully",
+                variant: "default"
+            })
+            setInviteDialogOpen(false)
+            setInviteEmail("")
+        } catch (error) {
+            console.error('Error inviting member:', error)
+            toast({
+                title: "Failed to invite member",
+                description: "Please check the email and try again",
+                variant: "destructive"
+            })
+        } finally {
+            setIsInviting(false)
         }
     }
 
@@ -140,7 +182,7 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" asChild>
-                        <Link href={`/protected/workspaces/${workspace.id}`}>
+                        <Link href={`/protected`}>
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>
@@ -252,14 +294,47 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
                                             Add members to collaborate in this workspace.
                                         </p>
                                     </div>
-                                    <Button>
-                                        <Users2 className="mr-2 h-4 w-4" />
-                                        Invite
-                                    </Button>
+                                    <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button>
+                                                <Users2 className="mr-2 h-4 w-4" />
+                                                Invite
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>Invite Team Member</DialogTitle>
+                                                <DialogDescription>
+                                                    Enter the email address of the person you want to invite to this workspace.
+                                                </DialogDescription>
+                                            </DialogHeader>
+                                            <div className="space-y-4 py-4">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="email">Email address</Label>
+                                                    <Input
+                                                        id="email"
+                                                        type="email"
+                                                        placeholder="Enter email address"
+                                                        value={inviteEmail}
+                                                        onChange={(e) => setInviteEmail(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <DialogFooter>
+                                                <Button
+                                                    onClick={handleInviteMember}
+                                                    disabled={isInviting}
+                                                >
+                                                    {isInviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                    {isInviting ? "Inviting..." : "Invite Member"}
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
                                 </div>
 
                                 <div className="text-sm text-muted-foreground">
-                                    No members yet. Invite some team members to get started.
+                                    Members will be displayed here ( Feature coming soon )
                                 </div>
                             </div>
                         </CardContent>

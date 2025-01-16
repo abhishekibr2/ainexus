@@ -19,8 +19,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Bot, MessageSquare, FileText, Info, Lock, Check, Key, Save, Trash2 } from "lucide-react";
+import { Settings, Bot, MessageSquare, FileText, Info, Lock, Check, Key, Save, Trash2, Pencil } from "lucide-react";
 import { motion } from "framer-motion";
+import { EditConnectionDialog } from "@/app/protected/(agent-pages)/connections/components/edit-connection-dialog";
+import { updateUserConnection } from "@/utils/supabase/actions/user/connections";
 
 const settingsFormSchema = z.object({
     name: z.string().optional(),
@@ -307,12 +309,64 @@ export function ModelSettingsDialog({
                                             <div className="space-y-4">
                                                 <div className="flex items-center justify-between">
                                                     <FormLabel className="text-base font-semibold">Connection Status</FormLabel>
-                                                    {selectedConnectionId && (
-                                                        <div className="rounded-full bg-green-50 dark:bg-green-900/20 px-3 py-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-2">
-                                                            <Check className="h-3 w-3" />
-                                                            Active Connection
-                                                        </div>
-                                                    )}
+                                                    <div className="flex items-center gap-2">
+                                                        {selectedConnectionId && (
+                                                            <>
+                                                                <div className="rounded-full bg-green-50 dark:bg-green-900/20 px-3 py-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-2">
+                                                                    <Check className="h-3 w-3" />
+                                                                    Active Connection
+                                                                </div>
+                                                                {selectedConnectionId && (
+                                                                    <EditConnectionDialog 
+                                                                        connection={availableConnections.find(conn => conn.id === selectedConnectionId)!}
+                                                                        onSave={async (updatedConnection) => {
+                                                                            try {
+                                                                                // Update the connection in the database
+                                                                                const { data: updatedData, error } = await updateUserConnection(
+                                                                                    selectedConnectionId!,
+                                                                                    updatedConnection.connection_key,
+                                                                                    updatedConnection.connection_name
+                                                                                );
+                                                                                
+                                                                                if (error) throw error;
+
+                                                                                // Refresh connections after the connection is updated
+                                                                                const supabase = createClient();
+                                                                                const { data: { user } } = await supabase.auth.getUser();
+                                                                                if (!user) return;
+                                                                                
+                                                                                const { data: connections } = await getUserConnections(user.id);
+                                                                                if (connections) {
+                                                                                    const appConnections = connections.filter(conn => conn.app_id === model.app_id);
+                                                                                    setAvailableConnections(appConnections);
+                                                                                    
+                                                                                    // Find and update the current connection values
+                                                                                    const updatedConn = appConnections.find(conn => conn.id === selectedConnectionId);
+                                                                                    if (updatedConn?.parsedConnectionKeys) {
+                                                                                        const values = Object.fromEntries(
+                                                                                            updatedConn.parsedConnectionKeys.map((pair: { key: string; value: string }) => [pair.key, pair.value])
+                                                                                        );
+                                                                                        setConnectionFieldValues(values);
+                                                                                        onConnectionKeysChange({
+                                                                                            ...values,
+                                                                                            connection_id: updatedConn.id
+                                                                                        });
+                                                                                    }
+                                                                                }
+                                                                            } catch (error) {
+                                                                                console.error('Error updating connection:', error);
+                                                                                toast({
+                                                                                    title: "Error",
+                                                                                    description: "Failed to update connection. Please try again.",
+                                                                                    variant: "destructive",
+                                                                                });
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <div className="rounded-lg border bg-card p-4 space-y-4">
                                                     {selectedConnectionId ? (
@@ -342,7 +396,7 @@ export function ModelSettingsDialog({
                                                                                 <div className="flex items-center gap-2">
                                                                                     <Check className="h-4 w-4 text-green-500" />
                                                                                     <span className="font-medium text-muted-foreground">
-                                                                                        {connectionFieldValues[fieldName]}
+                                                                                        ••••••••••••
                                                                                     </span>
                                                                                 </div>
                                                                             </div>

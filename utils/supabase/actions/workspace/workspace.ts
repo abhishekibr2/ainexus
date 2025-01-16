@@ -107,7 +107,7 @@ export async function deleteWorkspaceById(workspaceId: string | number) {
     }
 }
 
-export async function addWorkspaceMember(workspaceId: number, memberId: string) {
+export async function addWorkspaceMember(workspaceId: number, memberEmail: string) {
     const supabase = await createClient();
 
     // First get the current workspace
@@ -119,10 +119,21 @@ export async function addWorkspaceMember(workspaceId: number, memberId: string) 
 
     if (fetchError) throw fetchError;
 
+    // Get user by email
+    const { data: userProfile, error: userError } = await supabase
+        .from('user')
+        .select('id')
+        .eq('email', memberEmail)
+        .single();
+
+    if (userError) {
+        throw new Error("User not found with this email");
+    }
+
     // Add the new member to the members array if not already present
-    const updatedMembers = workspace.members.includes(memberId)
+    const updatedMembers = workspace.members.includes(userProfile.id)
         ? workspace.members
-        : [...workspace.members, memberId];
+        : [...workspace.members, userProfile.id];
 
     // Update the workspace with the new members array
     const { error: updateError } = await supabase
