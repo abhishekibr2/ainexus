@@ -43,6 +43,22 @@ export function NavUser({ user }: { user: SerializedUser }) {
   const router = useRouter()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
+
+  useEffect(() => {
+    const storedWorkspace = localStorage.getItem('selectedWorkspace')
+    if (storedWorkspace) {
+      setSelectedWorkspace(JSON.parse(storedWorkspace))
+    }
+
+    // Listen for workspace changes from TeamSwitcher
+    const handleWorkspaceChange = (event: CustomEvent) => {
+      setSelectedWorkspace(event.detail)
+    }
+
+    window.addEventListener('workspaceChanged', handleWorkspaceChange as EventListener)
+    return () => window.removeEventListener('workspaceChanged', handleWorkspaceChange as EventListener)
+  }, [])
 
   useEffect(() => {
     const loadWorkspaces = async () => {
@@ -107,8 +123,8 @@ export function NavUser({ user }: { user: SerializedUser }) {
                 <span className="truncate font-semibold">
                   {user.user_metadata.name || user.email}
                 </span>
-                <span className="truncate text-xs text-muted-foreground" >
-                  {workspaces.length > 0 && workspaces[0].name}
+                <span className="truncate text-xs text-muted-foreground">
+                  {selectedWorkspace?.name || workspaces[0]?.name}
                 </span>
                 <span className="truncate text-xs">{user.email}</span>
               </div>
