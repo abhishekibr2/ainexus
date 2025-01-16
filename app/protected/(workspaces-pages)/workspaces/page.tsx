@@ -2,9 +2,8 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { DatabaseIcon, CalendarIcon, WorkflowIcon, FileIcon, MenuIcon, HomeIcon, NotebookIcon, PlusCircle, Settings, Loader2 } from "lucide-react"
+import { PlusCircle, Settings, Loader2 } from "lucide-react"
 import { getUserWorkspaces, Workspace, createWorkspace } from "@/utils/supabase/actions/workspace/workspace"
 import { createClient } from "@/utils/supabase/client"
 import { useEffect, useState } from "react"
@@ -48,6 +47,7 @@ export default function Component() {
                     return null // Handle unauthorized state
                 }
                 const workspaces = await getUserWorkspaces(user.id)
+                console.log(workspaces)
                 setWorkspaces(workspaces)
             } catch (error) {
                 console.error('Error loading workspaces:', error)

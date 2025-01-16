@@ -8,13 +8,12 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { columns } from "./columns";
 import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
 import { Connection, createUserConnection, deleteUserConnection, getApplications, getUserConnections, updateUserConnection } from "@/utils/supabase/actions/user/connections";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
-import { EditConnectionDialog } from "./edit-connection-dialog";
-import { AddConnectionDialog } from "./add-connection-dialog";
+import { EditConnectionDialog } from "./components/edit-connection-dialog";
+import { AddConnectionDialog } from "./components/add-connection-dialog";
 import { toast } from "@/hooks/use-toast";
 import {
     AlertDialog,
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { TrashIcon } from "lucide-react";
+import { columns } from "./components/columns";
 
 export default function ConnectionPage() {
     const [connections, setConnections] = useState<Connection[]>([]);

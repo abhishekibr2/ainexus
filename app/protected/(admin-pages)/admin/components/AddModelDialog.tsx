@@ -16,7 +16,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { FileText, Code2, Settings, Plus, Wand2, Loader2 } from "lucide-react";
+import { FileText, Code2, Settings, Plus, Wand2, Loader2, X } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { getApplications, getModels, createModel } from "@/utils/supabase/actions/assistant/assistant";
 import { NewModel, availableIcons, sampleDescriptions } from "./types";
@@ -133,55 +133,106 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
                     Add New Agent
                 </Button>
             </DialogTrigger>
-            <DialogContent
-                className="max-w-[1200px] p-0 flex flex-col h-[90vh]"
-                onPointerDownOutside={(e) => {
-                    if (isSubmitting) {
-                        e.preventDefault();
-                    }
-                }}
-                onEscapeKeyDown={(e) => {
-                    if (isSubmitting) {
-                        e.preventDefault();
-                    }
-                }}
+            <DialogContent 
+                className="max-w-[95vw] w-full h-[90vh] p-0 bg-background overflow-hidden flex"
             >
-                <DialogHeader className="p-6 pb-0 flex-shrink-0">
-                    <DialogTitle>Create New Agent</DialogTitle>
-                    <DialogDescription>
-                        Configure your AI agent's settings and behavior.
-                    </DialogDescription>
-                </DialogHeader>
+                {/* Main Container */}
+                <div className="flex w-full h-full">
+                    {/* Left Sidebar - Navigation */}
+                    <div className="w-[280px] min-w-[280px] bg-muted/30 border-r flex flex-col">
+                        {/* Header */}
+                        <div className="shrink-0 p-6 border-b">
+                            <DialogTitle className="text-2xl font-semibold tracking-tight">Create Agent</DialogTitle>
+                            <DialogDescription className="text-sm text-muted-foreground mt-1">
+                                Build your custom AI agent
+                            </DialogDescription>
+                        </div>
 
-                <div className="flex-1 p-6 overflow-y-auto min-h-0">
-                    <div className="grid grid-cols-12 gap-6">
-                        {/* Left Column - Basic Info & API Config */}
-                        <div className="col-span-5 space-y-6">
-                            {/* Basic Info Section */}
-                            <div className="space-y-6">
-                                <div className="flex items-center space-x-2">
-                                    <FileText className="w-5 h-5 text-muted-foreground" />
-                                    <h2 className="text-lg font-semibold">Basic Information</h2>
+                        {/* Steps */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2 text-primary">
+                                        <FileText className="h-4 w-4" />
+                                        <h3 className="font-medium">Basic Information</h3>
+                                    </div>
+                                    <ul className="pl-6 text-sm text-muted-foreground space-y-1">
+                                        <li>• Name</li>
+                                        <li>• Description</li>
+                                        <li>• Icon</li>
+                                    </ul>
                                 </div>
-                                
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="name">Agent Name</Label>
+
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Settings className="h-4 w-4" />
+                                        <h3 className="font-medium">API Configuration</h3>
+                                    </div>
+                                    <ul className="pl-6 text-sm text-muted-foreground space-y-1">
+                                        <li>• Authentication</li>
+                                        <li>• App Type</li>
+                                        <li>• Required Fields</li>
+                                    </ul>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Code2 className="h-4 w-4" />
+                                        <h3 className="font-medium">Implementation</h3>
+                                    </div>
+                                    <ul className="pl-6 text-sm text-muted-foreground space-y-1">
+                                        <li>• Variables</li>
+                                        <li>• Code Editor</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Close Button */}
+                        <div className="shrink-0 p-6 border-t">
+                            <Button 
+                                variant="outline" 
+                                className="w-full" 
+                                onClick={() => {
+                                    if (!isSubmitting) {
+                                        setIsDialogOpen(false);
+                                        resetForm();
+                                    }
+                                }}
+                            >
+                                <X className="h-4 w-4 mr-2" />
+                                Close
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Middle Section - Form Fields */}
+                    <div className="flex-1 min-w-[500px] border-r flex flex-col">
+                        <div className="flex-1 overflow-y-auto">
+                            <div className="p-6">
+                                <div className="max-w-2xl space-y-6">
+                                    <div>
+                                        <Label htmlFor="name" className="text-base font-semibold">
+                                            Agent Name
+                                            <span className="text-destructive ml-1">*</span>
+                                        </Label>
                                         <Input
                                             id="name"
-                                            placeholder="Enter agent name"
+                                            placeholder="Enter a descriptive name"
                                             value={newModel.name}
-                                            onChange={(e) =>
-                                                setNewModel({ ...newModel, name: e.target.value })
-                                            }
+                                            onChange={(e) => setNewModel({ ...newModel, name: e.target.value })}
+                                            className="mt-2"
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between items-center">
-                                            <Label htmlFor="description">Description</Label>
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <Label htmlFor="description" className="text-base font-semibold">
+                                                Description
+                                                <span className="text-destructive ml-1">*</span>
+                                            </Label>
                                             <Button
-                                                variant="outline"
+                                                variant="ghost"
                                                 size="sm"
                                                 onClick={() => {
                                                     const randomIndex = Math.floor(Math.random() * sampleDescriptions.length);
@@ -190,219 +241,213 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
                                                         description: sampleDescriptions[randomIndex]
                                                     });
                                                 }}
-                                                type="button"
+                                                className="h-8 text-xs"
                                             >
-                                                <Wand2 className="h-4 w-4 mr-2" />
+                                                <Wand2 className="h-3 w-3 mr-1" />
                                                 Generate
                                             </Button>
                                         </div>
                                         <Textarea
                                             id="description"
-                                            placeholder="Describe what your model does"
-                                            className="h-32 resize-none font-mono text-sm"
+                                            placeholder="Describe what your agent does"
+                                            className="mt-2 h-24 resize-none"
                                             value={newModel.description}
-                                            onChange={(e) =>
-                                                setNewModel({ ...newModel, description: e.target.value })
-                                            }
+                                            onChange={(e) => setNewModel({ ...newModel, description: e.target.value })}
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Label>Agent Icon</Label>
-                                        <div className="grid grid-cols-6 gap-2">
+                                    <div>
+                                        <Label className="text-base font-semibold">Select an Icon</Label>
+                                        <div className="grid grid-cols-8 gap-2 mt-2">
                                             {availableIcons.map((icon) => {
                                                 const IconComponent = icon.icon;
                                                 const isSelected = newModel.icon === icon.id;
                                                 return (
                                                     <button
                                                         key={icon.id}
-                                                        className={`p-2 border rounded-lg hover:border-primary transition-colors ${isSelected ? 'border-primary bg-primary/10' : ''
-                                                            }`}
+                                                        className={`aspect-square p-3 border rounded-lg hover:border-primary transition-colors ${
+                                                            isSelected ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                                                        }`}
                                                         onClick={() => handleIconSelect(icon.id)}
                                                         type="button"
                                                     >
-                                                        <IconComponent className="h-6 w-6" />
+                                                        <IconComponent className="h-full w-full" />
                                                     </button>
                                                 );
                                             })}
                                         </div>
                                     </div>
-                                </div>
-                            </div>
 
-                            {/* API Configuration Section */}
-                            <div className="space-y-6 pt-6 border-t">
-                                <div className="flex items-center space-x-2">
-                                    <Settings className="w-5 h-5 text-muted-foreground" />
-                                    <h2 className="text-lg font-semibold">API Configuration</h2>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/5">
-                                        <div className="space-y-0.5">
-                                            <Label htmlFor="is_auth">Authentication Required</Label>
-                                            <p className="text-sm text-muted-foreground">
-                                                Enable if your API requires authentication
-                                            </p>
-                                        </div>
-                                        <Switch
-                                            id="is_auth"
-                                            checked={newModel.is_auth}
-                                            onCheckedChange={(checked) => {
-                                                setNewModel({
-                                                    ...newModel,
-                                                    is_auth: checked,
-                                                    app_id: checked ? newModel.app_id : 0,
-                                                });
-                                            }}
-                                        />
-                                    </div>
-
-                                    {newModel.is_auth && (
-                                        <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="app_id">App Type</Label>
-                                                {isLoadingApps ? (
-                                                    <Skeleton className="h-10 w-full" />
-                                                ) : (
-                                                    <select
-                                                        id="app_id"
-                                                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                                        value={newModel.app_id?.toString() || ''}
-                                                        onChange={(e) => {
-                                                            setNewModel({
-                                                                ...newModel,
-                                                                app_id: parseInt(e.target.value),
-                                                            });
-                                                        }}
-                                                        required
-                                                    >
-                                                        <option value="0" disabled>Select app type</option>
-                                                        {appOptions.map((app) => (
-                                                            <option key={app.id} value={app.id}>
-                                                                {app.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                )}
-                                                {appOptions.find(app => app.id === newModel.app_id)?.description && (
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {appOptions.find(app => app.id === newModel.app_id)?.description}
+                                    <div className="pt-6 border-t">
+                                        <div className="bg-muted/30 rounded-lg p-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="text-base font-semibold">Authentication Required</h3>
+                                                    <p className="text-sm text-muted-foreground mt-1">
+                                                        Enable if your agent needs API authentication
                                                     </p>
-                                                )}
+                                                </div>
+                                                <Switch
+                                                    id="is_auth"
+                                                    checked={newModel.is_auth}
+                                                    onCheckedChange={(checked) => {
+                                                        setNewModel({
+                                                            ...newModel,
+                                                            is_auth: checked,
+                                                            app_id: checked ? newModel.app_id : 0,
+                                                        });
+                                                    }}
+                                                />
                                             </div>
 
-                                            {appOptions.find(app => app.id === newModel.app_id)?.fields && (
-                                                <div className="space-y-2">
-                                                    <Label>Required Fields</Label>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
-                                                            <Badge key={index} className="text-xs">
-                                                                {field}
-                                                            </Badge>
-                                                        ))}
+                                            {newModel.is_auth && (
+                                                <div className="mt-4 pt-4 border-t border-border/50 animate-in fade-in-50">
+                                                    <div className="space-y-4">
+                                                        <div>
+                                                            <Label htmlFor="app_id" className="text-sm font-medium">App Type</Label>
+                                                            {isLoadingApps ? (
+                                                                <Skeleton className="h-9 w-full mt-1.5" />
+                                                            ) : (
+                                                                <select
+                                                                    id="app_id"
+                                                                    className="w-full mt-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                                    value={newModel.app_id?.toString() || ''}
+                                                                    onChange={(e) => {
+                                                                        setNewModel({
+                                                                            ...newModel,
+                                                                            app_id: parseInt(e.target.value),
+                                                                        });
+                                                                    }}
+                                                                    required
+                                                                >
+                                                                    <option value="0" disabled>Select app type</option>
+                                                                    {appOptions.map((app) => (
+                                                                        <option key={app.id} value={app.id}>
+                                                                            {app.name}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            )}
+                                                            {appOptions.find(app => app.id === newModel.app_id)?.description && (
+                                                                <p className="text-xs text-muted-foreground mt-1.5">
+                                                                    {appOptions.find(app => app.id === newModel.app_id)?.description}
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        {appOptions.find(app => app.id === newModel.app_id)?.fields && (
+                                                            <div>
+                                                                <Label className="text-sm font-medium">Required Fields</Label>
+                                                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                                    {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
+                                                                        <Badge key={index} variant="outline" className="text-xs">
+                                                                            {field}
+                                                                        </Badge>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Right Column - Code Section */}
-                        <div className="col-span-7 space-y-6">
-                            <div className="flex items-center space-x-2">
-                                <Code2 className="w-5 h-5 text-muted-foreground" />
-                                <h2 className="text-lg font-semibold">Code</h2>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="rounded-lg border p-4 space-y-4 bg-muted/5">
-                                    <div className="space-y-2">
-                                        <h4 className="font-medium">Accessible Variables</h4>
-                                        <div className="grid grid-cols-2 gap-2 text-sm">
-                                            <div className="flex items-center space-x-2">
-                                                <code className="bg-muted px-1 py-0.5 rounded">user.id</code>
-                                                <span className="text-muted-foreground">User's ID</span>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
-                                                <span className="text-muted-foreground">User's email</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {newModel.is_auth && appOptions.find(app => app.id === newModel.app_id)?.fields && (
-                                        <div className="space-y-2">
-                                            <h4 className="font-medium">Connection Variables</h4>
-                                            <div className="grid grid-cols-1 gap-2 text-sm">
-                                                {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
-                                                    <div key={index} className="flex items-center space-x-2">
-                                                        <code className="bg-muted px-1 py-0.5 rounded">vars.{field}</code>
-                                                        <span className="text-muted-foreground">Connection {field}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                        {/* Footer */}
+                        <div className="shrink-0 border-t bg-muted/30 p-6">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-muted-foreground">
+                                    All fields marked with <span className="text-destructive">*</span> are required
                                 </div>
-
-                                <div className="border rounded-md h-[500px]">
-                                    <Editor
-                                        height="100%"
-                                        defaultLanguage="javascript"
-                                        theme="vs-dark"
-                                        value={newModel.code}
-                                        onChange={(value) => {
-                                            setNewModel({
-                                                ...newModel,
-                                                code: value || "",
-                                            });
-                                        }}
-                                        options={{
-                                            minimap: { enabled: false },
-                                            fontSize: 14,
-                                            lineNumbers: "on",
-                                            scrollBeyondLastLine: false,
-                                            automaticLayout: true,
-                                            tabSize: 2,
-                                        }}
-                                    />
+                                <div className="flex items-center gap-3">
+                                    <Button
+                                        onClick={handleSubmit}
+                                        disabled={isSubmitting}
+                                        size="lg"
+                                        className="min-w-[120px]"
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Creating...
+                                            </>
+                                        ) : (
+                                            'Create Agent'
+                                        )}
+                                    </Button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="p-6 border-t mt-auto">
-                    <div className="flex justify-end gap-4">
-                        <Button
-                            variant="outline"
-                            type="button"
-                            onClick={() => {
-                                if (!isSubmitting) {
-                                    setIsDialogOpen(false);
-                                    resetForm();
-                                }
-                            }}
-                            disabled={isSubmitting}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            onClick={handleSubmit}
-                            disabled={isSubmitting}
-                        >
-                            {isSubmitting ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Creating...
-                                </>
-                            ) : (
-                                'Create Agent'
-                            )}
-                        </Button>
+                    {/* Right Section - Code Editor */}
+                    <div className="w-[45%] min-w-[600px] flex flex-col">
+                        <div className="shrink-0 p-6 border-b bg-muted/30">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-base font-semibold">Code Implementation</h3>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Write your agent's logic and behavior
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
+                            <div className="shrink-0 bg-muted/30 rounded-lg p-4">
+                                <h4 className="text-sm font-medium mb-2">Available Variables</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <code className="px-1.5 py-0.5 rounded text-xs bg-muted">user.id</code>
+                                        <span className="text-xs text-muted-foreground">User's ID</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <code className="px-1.5 py-0.5 rounded text-xs bg-muted">user.email</code>
+                                        <span className="text-xs text-muted-foreground">User's email</span>
+                                    </div>
+                                </div>
+
+                                {newModel.is_auth && appOptions.find(app => app.id === newModel.app_id)?.fields && (
+                                    <div className="mt-3 pt-3 border-t">
+                                        <h4 className="text-sm font-medium mb-2">Connection Variables</h4>
+                                        <div className="grid grid-cols-1 gap-2">
+                                            {appOptions.find(app => app.id === newModel.app_id)?.fields.map((field, index) => (
+                                                <div key={index} className="flex items-center gap-2">
+                                                    <code className="px-1.5 py-0.5 rounded text-xs bg-muted">vars.{field}</code>
+                                                    <span className="text-xs text-muted-foreground">Connection {field}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex-1 border rounded-lg overflow-hidden bg-background">
+                                <Editor
+                                    height="100%"
+                                    defaultLanguage="javascript"
+                                    theme="vs-dark"
+                                    value={newModel.code}
+                                    onChange={(value) => {
+                                        setNewModel({
+                                            ...newModel,
+                                            code: value || "",
+                                        });
+                                    }}
+                                    options={{
+                                        minimap: { enabled: false },
+                                        fontSize: 14,
+                                        lineNumbers: "on",
+                                        scrollBeyondLastLine: false,
+                                        automaticLayout: true,
+                                        tabSize: 2,
+                                    }}
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </DialogContent>

@@ -1,10 +1,10 @@
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Connection, ConnectionKeyPair } from "@/utils/supabase/actions/user/connections";
-import { EditConnectionDialog } from "./edit-connection-dialog";
 import { Button } from "@/components/ui/button";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState } from "react";
+import { EditConnectionDialog } from "./edit-connection-dialog";
 
 const HiddenKeyDisplay = ({ keyPair }: { keyPair: ConnectionKeyPair }) => {
     const [showKey, setShowKey] = useState(false);
