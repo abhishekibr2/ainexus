@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Workspace, getWorkspaceById, updateWorkspaceDetails, deleteWorkspaceById, addWorkspaceMember } from "@/utils/supabase/actions/workspace/workspace"
 import { useRouter } from "next-nprogress-bar"
 import { toast } from "@/hooks/use-toast"
+import { searchUsers } from "@/utils/supabase/actions/user/users"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -33,9 +34,25 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+    Command,
+    CommandDialog,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command"
+import { useDebouncedCallback } from "use-debounce"
 
 // Custom event for workspace updates
 const WORKSPACE_DELETED_EVENT = 'workspaceDeleted'
+
+interface SearchUser {
+    id: string;
+    email: string;
+    name: string | null;
+}
 
 export default function WorkspaceSettings({ params }: { params: Promise<{ workspaces: string }> }) {
     const resolvedParams = use(params)
@@ -49,6 +66,37 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
     const [inviteEmail, setInviteEmail] = useState("")
     const [isInviting, setIsInviting] = useState(false)
     const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
+    const [commandOpen, setCommandOpen] = useState(false)
+    const [searchResults, setSearchResults] = useState<SearchUser[]>([])
+    const [searchLoading, setSearchLoading] = useState(false)
+    const [inputValue, setInputValue] = useState("")
+    const [open, setOpen] = useState(false)
+
+    const debouncedSearch = useDebouncedCallback(async (value: string) => {
+        if (!value) {
+            setSearchResults([])
+            return
+        }
+        
+        setSearchLoading(true)
+        try {
+            const results = await searchUsers(value)
+            setSearchResults(Array.isArray(results) ? results : [])
+        } catch (error) {
+            console.error('Error searching users:', error)
+            setSearchResults([])
+        } finally {
+            setSearchLoading(false)
+        }
+    }, 300)
+
+    useEffect(() => {
+        if (inputValue) {
+            debouncedSearch(inputValue)
+        } else {
+            setSearchResults([])
+        }
+    }, [inputValue])
 
     useEffect(() => {
         const loadWorkspace = async () => {
@@ -311,13 +359,58 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ worksp
                                             <div className="space-y-4 py-4">
                                                 <div className="space-y-2">
                                                     <Label htmlFor="email">Email address</Label>
-                                                    <Input
-                                                        id="email"
-                                                        type="email"
-                                                        placeholder="Enter email address"
-                                                        value={inviteEmail}
-                                                        onChange={(e) => setInviteEmail(e.target.value)}
-                                                    />
+                                                    <div className="relative">
+                                                        <Command shouldFilter={false} className="rounded-lg border shadow-md">
+                                                            <CommandInput 
+                                                                id="email"
+                                                                placeholder="Enter email address"
+                                                                value={inputValue}
+                                                                onValueChange={(value) => {
+                                                                    setInputValue(value)
+                                                                    setInviteEmail(value)
+                                                                    if (value) {
+                                                                        setOpen(true)
+                                                                    } else {
+                                                                        setOpen(false)
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <CommandList>
+                                                                {searchLoading ? (
+                                                                    <CommandGroup>
+                                                                        <CommandItem disabled>
+                                                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                            Searching...
+                                                                        </CommandItem>
+                                                                    </CommandGroup>
+                                                                ) : searchResults.length > 0 ? (
+                                                                    <CommandGroup>
+                                                                        {searchResults.map((user) => (
+                                                                            <CommandItem
+                                                                                key={user.id}
+                                                                                onSelect={() => {
+                                                                                    setInviteEmail(user.email)
+                                                                                    setInputValue(user.email)
+                                                                                    setOpen(false)
+                                                                                }}
+                                                                            >
+                                                                                <span>{user.email}</span>
+                                                                                {user.name && (
+                                                                                    <span className="ml-2 text-muted-foreground">
+                                                                                        ({user.name})
+                                                                                    </span>
+                                                                                )}
+                                                                            </CommandItem>
+                                                                        ))}
+                                                                    </CommandGroup>
+                                                                ) : inputValue ? (
+                                                                    <CommandGroup>
+                                                                        <CommandItem>No users found</CommandItem>
+                                                                    </CommandGroup>
+                                                                ) : null}
+                                                            </CommandList>
+                                                        </Command>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <DialogFooter>
