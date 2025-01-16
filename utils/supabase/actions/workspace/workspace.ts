@@ -3,7 +3,7 @@ import { createClient } from "../../client";
 
 export type Workspace = Database['public']['Tables']['workspaces']['Row'];
 
-export async function getUserWorkspaces(userId: string) {
+export async function getUserWorkspaces(userId: string, userEmail?: string) {
     try {
         const supabase = await createClient();
         const { data: workspaces, error } = await supabase
@@ -17,11 +17,11 @@ export async function getUserWorkspaces(userId: string) {
                     name: "Default Workspace",
                     description: "Default workspace for user",
                     owner: userId,
-                    members: [userId]
+                    members: [userId],
+                    owner_email: userEmail || ""
                 })
                 .select()
             if (workspaceError) throw workspaceError;
-            console.log(workspace)
             return workspace;
         }
         if (error) throw error;
@@ -46,7 +46,8 @@ export async function createWorkspace(name: string, description?: string) {
             name,
             description,
             owner: user.id,
-            members: [user.id]
+            members: [user.id],
+            owner_email: user.email
         })
         .select()
         .single();

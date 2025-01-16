@@ -1,5 +1,22 @@
 import { LucideIcon, Brain, Bot, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings } from "lucide-react";
 
+export type PermissionType = 'global' | 'restricted';
+export type RestrictedPermissionOption = 'user' | 'workspace';
+
+export interface RestrictedUser {
+    id: string;
+    email: string;
+    name?: string;
+    username?: string;
+}
+
+export interface Permission {
+    type: PermissionType;
+    restricted_to?: RestrictedPermissionOption[];
+    restricted_users?: string[];  // Array of user IDs
+    restricted_workspaces?: number[];  // Array of workspace IDs
+}
+
 export interface NewModel {
     name: string;
     description: string;
@@ -7,6 +24,7 @@ export interface NewModel {
     is_auth: boolean;
     code: string;
     app_id: number | null;
+    permission: Permission;
 }
 
 export interface Model extends NewModel {

@@ -45,11 +45,9 @@ export function NavUser({ user }: { user: SerializedUser }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    console.log("NavUser useEffect")
     const loadWorkspaces = async () => {
       try {
-        const workspacesData = await getUserWorkspaces(user.id)
-        console.log({ workspacesData })
+        const workspacesData = await getUserWorkspaces(user.id, user.email)
         setWorkspaces(workspacesData)
       } catch (error) {
         console.error('Error loading workspaces:', error)

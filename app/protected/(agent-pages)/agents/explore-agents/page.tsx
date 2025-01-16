@@ -28,6 +28,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { User } from "@supabase/supabase-js";
 import { AddConnectionDialog } from "../../connections/components/add-connection-dialog";
 import { getApplications } from "@/utils/supabase/actions/user/connections";
+import { getUserWorkspaces } from "@/utils/supabase/actions/workspace/workspace";
 
 // Step form schema
 const modelConfigSchema = z.object({
@@ -75,6 +76,12 @@ interface Model {
     created_by: string;
     created_at: string;
     fields?: string[];
+    permission?: {
+        type: 'global' | 'restricted';
+        restricted_users?: string[];
+        restricted_to?: string[];
+        restricted_workspaces?: number[];
+    };
 }
 
 // Step form default values
@@ -1179,11 +1186,45 @@ export default function ExploreModels() {
 
                 if (user) {
                     const fetchedModels = await getModels(user.id);
-                    setModels(fetchedModels);
+                    
+                    // Get user's workspaces for permission checking
+                    const userWorkspaces = await getUserWorkspaces(user.id);
+                    const workspaceIds = userWorkspaces.map((w: { id: number }) => w.id);
+
+                    // Filter models based on permissions
+                    const accessibleModels = fetchedModels.filter(model => {
+                        const permission = model.permission || { type: 'global' };
+                        
+                        // If global type, everyone has access
+                        if (permission.type === 'global') {
+                            return true;
+                        }
+                        
+                        // For restricted type, check user and workspace access
+                        if (permission.type === 'restricted') {
+                            // Check direct user access
+                            if (permission.restricted_users?.includes(user.id)) {
+                                return true;
+                            }
+                            
+                            // Check workspace access
+                            if (permission.restricted_to?.includes('workspace')) {
+                                return permission.restricted_workspaces?.some(
+                                    (wsId: number) => workspaceIds.includes(wsId)
+                                ) || false;
+                            }
+                            
+                            return false;
+                        }
+                        
+                        return false;
+                    });
+
+                    setModels(accessibleModels);
 
                     // If modelId is present in URL, scroll to that model and highlight it
                     if (modelId) {
-                        const targetModel = fetchedModels.find(m => m.id === parseInt(modelId));
+                        const targetModel = accessibleModels.find(m => m.id === parseInt(modelId));
                         if (targetModel) {
                             // Set the category of the target model
                             setSelectedCategory(targetModel.icon || "all");

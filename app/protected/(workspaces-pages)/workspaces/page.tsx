@@ -46,8 +46,7 @@ export default function Component() {
                 if (!user) {
                     return null // Handle unauthorized state
                 }
-                const workspaces = await getUserWorkspaces(user.id)
-                console.log(workspaces)
+                const workspaces = await getUserWorkspaces(user.id, user.email)
                 setWorkspaces(workspaces)
             } catch (error) {
                 console.error('Error loading workspaces:', error)

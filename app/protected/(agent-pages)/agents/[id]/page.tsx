@@ -14,6 +14,7 @@ import { addToFavorites, removeFromFavorites, checkIsFavorite } from "@/utils/su
 import { isSuperAdmin } from "@/utils/supabase/admin";
 import { User } from "@supabase/supabase-js";
 import { getUserConnections } from "@/utils/supabase/actions/user/connections";
+import { getUserWorkspaces } from "@/utils/supabase/actions/workspace/workspace";
 import { ChatHeader } from "./components/chat-header";
 import { MessageList } from "./components/message-list";
 import { ChatInput } from "./components/chat-input";
@@ -80,20 +81,50 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     const isFav = await checkIsFavorite(user.id, parseInt(id));
                     setIsFavorite(isFav);
 
-                    // Check if user has access to this model
+                    // Get assigned model details
                     const { data: assignedModels } = await getUserAssignedModels(user.id);
                     const hasModelAccess = assignedModels?.some(m => m.id === parseInt(id));
-                    setHasAccess(hasModelAccess || false);
-
+                    
                     if (!hasModelAccess) {
                         setIsLoading(false);
+                        setHasAccess(false);
                         return;
                     }
+
                     const modelId = assignedModels?.find(m => m.id === parseInt(id))?.assistant_id;
                     // Fetch model data
                     const models = await getModels(user.id);
                     const foundModel = models.find(m => m.id === modelId);
+                    
                     if (foundModel) {
+                        // Check permissions
+                        const permission = foundModel.permission || { type: 'global' };
+                        let hasPermission = false;
+
+                        if (permission.type === 'global') {
+                            hasPermission = true;
+                        } else if (permission.type === 'restricted') {
+                            // Check user-level access
+                            if (permission.restricted_users?.includes(user.id)) {
+                                hasPermission = true;
+                            }
+                            
+                            // Check workspace-level access if user doesn't have direct access
+                            if (!hasPermission && permission.restricted_to?.includes('workspace')) {
+                                const userWorkspaces = await getUserWorkspaces(user.id);
+                                const workspaceIds = userWorkspaces.map((w: { id: number }) => w.id);
+                                hasPermission = permission.restricted_workspaces?.some(
+                                    (wsId: number) => workspaceIds.includes(wsId)
+                                ) || false;
+                            }
+                        }
+
+                        if (!hasPermission) {
+                            setHasAccess(false);
+                            setIsLoading(false);
+                            return;
+                        }
+
                         const assignedModel = await getUserAssignedModel(parseInt(id));
                         //set the model name and description to the assigned model
                         setModel(foundModel);
@@ -103,6 +134,8 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                             description: assignedModel.description,
                             is_auth: foundModel.is_auth
                         }));
+
+                        setHasAccess(true);
 
                         // If model requires auth, fetch connection keys
                         if (foundModel.is_auth) {
