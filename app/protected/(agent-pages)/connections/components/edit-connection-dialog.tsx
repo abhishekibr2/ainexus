@@ -95,13 +95,28 @@ export function EditConnectionDialog({ connection, onSave }: EditConnectionDialo
             
             const connectionKeyString = `{${connectionKeyArray.join(',')}}`;  // PostgreSQL array format
 
-            await onSave({
+            const updatedConnection = {
                 connection_name: connectionName.trim(),
                 connection_key: connectionKeyString,
-            });
+                parsedConnectionKeys: Object.entries(connectionValues).map(([key, value]) => ({
+                    key,
+                    value
+                }))
+            };
+
+            await onSave(updatedConnection);
             
             // Close dialog only on success
             setIsOpen(false);
+            
+            // Reset form state
+            setConnectionName(connection.connection_name || '');
+            setConnectionValues(
+                Object.fromEntries(
+                    (connection.parsedConnectionKeys || [])
+                        .map(({ key, value }) => [key, value || ''])
+                )
+            );
         } catch (error) {
             console.error('Error updating connection:', error);
             toast({

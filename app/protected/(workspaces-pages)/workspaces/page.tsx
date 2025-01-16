@@ -44,7 +44,7 @@ export default function Component() {
                 const supabase = await createClient()
                 const { data: { user } } = await supabase.auth.getUser()
                 if (!user) {
-                    return null // Handle unauthorized state
+                    return null
                 }
                 const workspaces = await getUserWorkspaces(user.id, user.email)
                 setWorkspaces(workspaces)
@@ -169,19 +169,12 @@ export default function Component() {
         return workspaces.map((workspace) => (
             <Card key={workspace.id}>
                 <CardHeader className="relative">
-                    <Link
-                        href={`/protected/workspaces/${workspace.id}/manage-workspace`}
-                        className="absolute right-4 top-4 p-2 hover:bg-muted rounded-md transition-colors"
-                    >
-                        <Settings className="h-4 w-4 text-muted-foreground" />
-                        <span className="sr-only">Workspace Settings</span>
-                    </Link>
                     <CardTitle>{workspace.name}</CardTitle>
                     <CardDescription>{workspace.description || 'No description available'}</CardDescription>
                 </CardHeader>
                 <CardFooter>
                     <Button asChild>
-                        <Link href={`/protected/workspaces/${workspace.id}`}>
+                        <Link href={`/protected/workspaces/${workspace.id}/manage-workspace`}>
                             Open Workspace
                         </Link>
                     </Button>

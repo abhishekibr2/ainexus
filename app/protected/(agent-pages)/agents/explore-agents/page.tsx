@@ -373,7 +373,7 @@ const ModelCard = ({ model }: { model: Model }) => {
 const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit: (data: ModelConfigValues) => void; onCancel: () => void }) => {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const totalSteps = model.is_auth ? 3 : 2; // Only 2 steps for non-auth models
+    const totalSteps = model.is_auth ? 2 : 1;
     const [availableConnections, setAvailableConnections] = useState<Connection[]>([]);
     const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
     const [connectionFieldValues, setConnectionFieldValues] = useState<Record<string, string>>({});
@@ -381,7 +381,20 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
 
     const form = useForm<ModelConfigValues>({
         resolver: zodResolver(modelConfigSchema),
-        defaultValues: defaultModelConfig,
+        defaultValues: {
+            basic: {
+                override_name: model.name,
+                override_description: model.description,
+            },
+            auth: {
+                user_connection_id: undefined,
+                config_keys: {},
+            },
+            advanced: {
+                override_instructions: "",
+                permission_scope: "private",
+            },
+        },
         context: {
             fields: model.fields || []
         }
@@ -513,9 +526,9 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                             name="basic.override_name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Override Name (Optional)</FormLabel>
+                                    <FormLabel>Name</FormLabel>
                                     <FormControl>
-                                        <Input placeholder={model.name} {...field} />
+                                        <Input {...field} />
                                     </FormControl>
                                     <FormDescription>
                                         Customize the display name for this agent
@@ -529,10 +542,9 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                             name="basic.override_description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Override Description (Optional)</FormLabel>
+                                    <FormLabel>Description</FormLabel>
                                     <FormControl>
                                         <Textarea
-                                            placeholder={model.description}
                                             className="min-h-[100px]"
                                             {...field}
                                         />
@@ -544,10 +556,58 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                 </FormItem>
                             )}
                         />
+                        {!model.is_auth && (
+                            <>
+                                <FormField
+                                    control={form.control}
+                                    name="advanced.override_instructions"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Instructions</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    className="min-h-[100px]"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Provide custom instructions for how the agent should behave
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="advanced.permission_scope"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Permission Scope</FormLabel>
+                                            <Select
+                                                value={field.value}
+                                                onValueChange={field.onChange}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="private">Private</SelectItem>
+                                                    <SelectItem value="team">Team</SelectItem>
+                                                    <SelectItem value="public">Public</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormDescription>
+                                                Control who can access this agent
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </>
+                        )}
                     </motion.div>
                 );
             case 2:
-                // Return auth step for auth models, advanced step for non-auth models
                 return model.is_auth ? (
                     <motion.div
                         initial={{ opacity: 0, x: 20 }}
@@ -608,135 +668,57 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                                 No connections available. Create a new connection to proceed.
                                             </div>
                                         )}
+                                        <FormField
+                                            control={form.control}
+                                            name="advanced.override_instructions"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Instructions</FormLabel>
+                                                    <FormControl>
+                                                        <Textarea
+                                                            className="min-h-[100px]"
+                                                            {...field}
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Provide custom instructions for how the agent should behave
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="advanced.permission_scope"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Permission Scope</FormLabel>
+                                                    <Select
+                                                        value={field.value}
+                                                        onValueChange={field.onChange}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="private">Private</SelectItem>
+                                                            <SelectItem value="team">Team</SelectItem>
+                                                            <SelectItem value="public">Public</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormDescription>
+                                                        Control who can access this agent
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
                                     </FormItem>
                                 )}
                             />
                         </div>
                     </motion.div>
-                ) : (
-                    // Advanced settings for non-auth models
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="space-y-4"
-                    >
-                        <div className="text-center">
-                            <h2 className="text-lg font-semibold">Advanced Settings</h2>
-                            <p className="text-sm text-muted-foreground">
-                                Configure advanced options for your agent
-                            </p>
-                        </div>
-                        <FormField
-                            control={form.control}
-                            name="advanced.override_instructions"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Override Instructions (Optional)</FormLabel>
-                                    <FormControl>
-                                        <Textarea
-                                            placeholder="Enter custom instructions for the agent..."
-                                            className="min-h-[100px]"
-                                            {...field}
-                                        />
-                                    </FormControl>
-                                    <FormDescription>
-                                        Provide custom instructions for how the agent should behave
-                                    </FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="advanced.permission_scope"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Permission Scope</FormLabel>
-                                    <Select
-                                        value={field.value}
-                                        onValueChange={field.onChange}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a permission scope" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="private">Private</SelectItem>
-                                            <SelectItem value="team">Team</SelectItem>
-                                            <SelectItem value="public">Public</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormDescription>
-                                        Control who can access this agent
-                                    </FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </motion.div>
-                );
-            case 3:
-                return (
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="space-y-4"
-                    >
-                        <div className="text-center">
-                            <h2 className="text-lg font-semibold">Advanced Settings</h2>
-                            <p className="text-sm text-muted-foreground">
-                                Configure advanced options for your agent
-                            </p>
-                        </div>
-                        <FormField
-                            control={form.control}
-                            name="advanced.override_instructions"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Override Instructions (Optional)</FormLabel>
-                                    <FormControl>
-                                        <Textarea
-                                            placeholder="Enter custom instructions for the agent..."
-                                            className="min-h-[100px]"
-                                            {...field}
-                                        />
-                                    </FormControl>
-                                    <FormDescription>
-                                        Provide custom instructions for how the agent should behave
-                                    </FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="advanced.permission_scope"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Permission Scope</FormLabel>
-                                    <Select
-                                        value={field.value}
-                                        onValueChange={field.onChange}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a permission scope" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="private">Private</SelectItem>
-                                            <SelectItem value="team">Team</SelectItem>
-                                            <SelectItem value="public">Public</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormDescription>
-                                        Control who can access this agent
-                                    </FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </motion.div>
-                );
+                ) : null;
             default:
                 return null;
         }
@@ -772,7 +754,7 @@ const ModelConfigForm = ({ model, onSubmit, onCancel }: { model: Model; onSubmit
                                 )}
                             </div>
                             <span className="mt-2 text-sm font-medium">
-                                {index === 0 ? "Basic" : index === 1 ? (model.is_auth ? "Auth" : "Advanced") : "Advanced"}
+                                {index === 0 ? "Basic" : "Auth"}
                             </span>
                         </div>
                     ))}
