@@ -166,7 +166,7 @@ export function ModelList({
                         <TableHead>Name</TableHead>
                         <TableHead>Description</TableHead>
                         <TableHead>Auth Required</TableHead>
-                        <TableHead>Code</TableHead>
+                        <TableHead>Override Config</TableHead>
                         <TableHead>Actions</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -243,13 +243,7 @@ export function ModelList({
                                                 </Link>
                                             </TableCell>
                                             <TableCell className="font-mono text-sm max-w-[200px] truncate">
-                                                <Link
-                                                    href={`/protected/agents/explore-agents?id=${model.id}`}
-                                                    target="_blank"
-                                                    className="block"
-                                                >
-                                                    {model.code}
-                                                </Link>
+                                                {model.override_config ? JSON.stringify(model.override_config, null, 0) : ''}
                                             </TableCell>
                                             <TableCell>
                                                 <motion.div

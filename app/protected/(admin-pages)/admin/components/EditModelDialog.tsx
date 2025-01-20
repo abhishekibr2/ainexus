@@ -147,8 +147,8 @@ export function EditModelDialog({
             open={showDialog}
             onOpenChange={onOpenChange}
         >
-            <DialogContent 
-                className="max-w-[95vw] w-full h-[90vh] p-0 bg-background overflow-hidden flex"
+            <DialogContent
+                className="max-w-[1200px] w-full h-[90vh] p-0 bg-background flex flex-col"
                 onPointerDownOutside={(e) => {
                     if (isSubmitting) {
                         e.preventDefault();
@@ -160,320 +160,282 @@ export function EditModelDialog({
                     }
                 }}
             >
-                {/* Main Container */}
-                <div className="flex w-full h-full">
-                    {/* Left Sidebar - Navigation */}
-                    <div className="w-[280px] min-w-[280px] bg-muted/30 border-r flex flex-col">
-                        {/* Header */}
-                        <div className="shrink-0 p-6 border-b">
+                {/* Header - Fixed */}
+                <div className="shrink-0 p-6 border-b">
+                    <div className="flex items-start justify-between">
+                        <div>
                             <DialogTitle className="text-2xl font-semibold tracking-tight">Edit Agent</DialogTitle>
                             <DialogDescription className="text-sm text-muted-foreground mt-1">
-                                Modify your agent's configuration
+                                Modify your agent's configuration and behavior
                             </DialogDescription>
                         </div>
-
-                        {/* Steps */}
-                        <div className="flex-1 overflow-y-auto p-6">
-                            <div className="space-y-4">
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2 text-primary">
-                                        <FileText className="h-4 w-4" />
-                                        <h3 className="font-medium">Basic Information</h3>
-                                    </div>
-                                    <ul className="pl-6 text-sm text-muted-foreground space-y-1">
-                                        <li>• Name</li>
-                                        <li>• Description</li>
-                                        <li>• Icon</li>
-                                    </ul>
-                                </div>
-
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Settings className="h-4 w-4" />
-                                        <h3 className="font-medium">API Configuration</h3>
-                                    </div>
-                                    <ul className="pl-6 text-sm text-muted-foreground space-y-1">
-                                        <li>• Authentication</li>
-                                        <li>• App Type</li>
-                                        <li>• Required Fields</li>
-                                    </ul>
-                                </div>
-
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Code2 className="h-4 w-4" />
-                                        <h3 className="font-medium">Implementation</h3>
-                                    </div>
-                                    <ul className="pl-6 text-sm text-muted-foreground space-y-1">
-                                        <li>• Variables</li>
-                                        <li>• Code Editor</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Close Button */}
-                        <div className="shrink-0 p-6 border-t">
-                            <Button 
-                                variant="outline" 
-                                className="w-full" 
-                                onClick={() => onOpenChange(false)}
-                            >
-                                <X className="h-4 w-4 mr-2" />
-                                Close
-                            </Button>
-                        </div>
                     </div>
+                </div>
 
-                    {/* Middle Section - Form Fields */}
-                    <div className="flex-1 min-w-[500px] border-r flex flex-col">
-                        <div className="flex-1 overflow-y-auto">
-                            <div className="p-6">
-                                <div className="max-w-2xl space-y-6">
-                                    <div>
-                                        <Label htmlFor="name" className="text-base font-semibold">
-                                            Agent Name
-                                            <span className="text-destructive ml-1">*</span>
-                                        </Label>
-                                        <Input
-                                            id="name"
-                                            placeholder="Enter a descriptive name"
-                                            value={modelData.name}
-                                            onChange={(e) => setModelData({ ...modelData, name: e.target.value })}
-                                            className="mt-2"
-                                        />
+                {/* Content - Scrollable */}
+                <div className="flex-1 overflow-y-auto">
+                    <div className="p-6">
+                        <div className="grid grid-cols-2 gap-6">
+                            {/* Left Column - Basic Info & Settings */}
+                            <div className="space-y-6">
+                                {/* Basic Information Section */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                        <FileText className="h-4 w-4" />
+                                        Basic Information
                                     </div>
-
-                                    <div>
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="description" className="text-base font-semibold">
-                                                Description
+                                    <div className="space-y-4">
+                                        <div>
+                                            <Label htmlFor="name" className="text-sm font-medium">
+                                                Agent Name
                                                 <span className="text-destructive ml-1">*</span>
                                             </Label>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => {
-                                                    const randomIndex = Math.floor(Math.random() * sampleDescriptions.length);
-                                                    setModelData({
-                                                        ...modelData,
-                                                        description: sampleDescriptions[randomIndex]
-                                                    });
-                                                }}
-                                                className="h-8 text-xs"
-                                            >
-                                                <Wand2 className="h-3 w-3 mr-1" />
-                                                Generate
-                                            </Button>
+                                            <Input
+                                                id="name"
+                                                placeholder="Enter a descriptive name"
+                                                value={modelData.name}
+                                                onChange={(e) => setModelData({ ...modelData, name: e.target.value })}
+                                                className="mt-1.5"
+                                            />
                                         </div>
-                                        <Textarea
-                                            id="description"
-                                            placeholder="Describe what your agent does"
-                                            className="mt-2 h-24 resize-none"
-                                            value={modelData.description}
-                                            onChange={(e) => setModelData({ ...modelData, description: e.target.value })}
-                                        />
-                                    </div>
 
-                                    <div>
-                                        <Label className="text-base font-semibold">Select an Icon</Label>
-                                        <div className="grid grid-cols-8 gap-2 mt-2">
-                                            {availableIcons.map((icon) => {
-                                                const IconComponent = icon.icon;
-                                                const isSelected = modelData.icon === icon.id;
-                                                return (
-                                                    <button
-                                                        key={icon.id}
-                                                        className={`aspect-square p-3 border rounded-lg hover:border-primary transition-colors ${
-                                                            isSelected ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
-                                                        }`}
-                                                        onClick={() => handleIconSelect(icon.id)}
-                                                        type="button"
-                                                    >
-                                                        <IconComponent className="h-full w-full" />
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-6 border-t">
-                                        <div className="bg-muted/30 rounded-lg p-4">
+                                        <div>
                                             <div className="flex items-center justify-between">
-                                                <div>
-                                                    <h3 className="text-base font-semibold">Authentication Required</h3>
-                                                    <p className="text-sm text-muted-foreground mt-1">
-                                                        Enable if your agent needs API authentication
-                                                    </p>
-                                                </div>
-                                                <Switch
-                                                    id="is_auth"
-                                                    checked={modelData.is_auth}
-                                                    onCheckedChange={(checked) => {
+                                                <Label htmlFor="description" className="text-sm font-medium">
+                                                    Description
+                                                    <span className="text-destructive ml-1">*</span>
+                                                </Label>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        const randomIndex = Math.floor(Math.random() * sampleDescriptions.length);
                                                         setModelData({
                                                             ...modelData,
-                                                            is_auth: checked,
-                                                            app_id: checked ? modelData.app_id : 0,
+                                                            description: sampleDescriptions[randomIndex]
                                                         });
                                                     }}
-                                                />
+                                                    className="h-7 text-xs"
+                                                >
+                                                    <Wand2 className="h-3 w-3 mr-1" />
+                                                    Generate
+                                                </Button>
                                             </div>
+                                            <Textarea
+                                                id="description"
+                                                placeholder="Describe what your agent does"
+                                                className="mt-1.5 h-20 resize-none"
+                                                value={modelData.description}
+                                                onChange={(e) => setModelData({ ...modelData, description: e.target.value })}
+                                            />
+                                        </div>
 
-                                            {modelData.is_auth && (
-                                                <div className="mt-4 pt-4 border-t border-border/50 animate-in fade-in-50">
-                                                    <div className="space-y-4">
-                                                        <div>
-                                                            <Label htmlFor="app_id" className="text-sm font-medium">App Type</Label>
-                                                            {isLoadingApps ? (
-                                                                <Skeleton className="h-9 w-full mt-1.5" />
-                                                            ) : (
-                                                                <select
-                                                                    id="app_id"
-                                                                    className="w-full mt-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                                                    value={modelData.app_id?.toString() || ''}
-                                                                    onChange={(e) => {
-                                                                        setModelData({
-                                                                            ...modelData,
-                                                                            app_id: parseInt(e.target.value),
-                                                                        });
-                                                                    }}
-                                                                    required
-                                                                >
-                                                                    <option value="0" disabled>Select app type</option>
-                                                                    {appOptions.map((app) => (
-                                                                        <option key={app.id} value={app.id}>
-                                                                            {app.name}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            )}
-                                                            {appOptions.find(app => app.id === modelData.app_id)?.description && (
-                                                                <p className="text-xs text-muted-foreground mt-1.5">
-                                                                    {appOptions.find(app => app.id === modelData.app_id)?.description}
-                                                                </p>
-                                                            )}
-                                                        </div>
-
-                                                        {appOptions.find(app => app.id === modelData.app_id)?.fields && (
-                                                            <div>
-                                                                <Label className="text-sm font-medium">Required Fields</Label>
-                                                                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                                                    {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
-                                                                        <Badge key={index} variant="outline" className="text-xs">
-                                                                            {field}
-                                                                        </Badge>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
+                                        <div>
+                                            <Label className="text-sm font-medium">Select an Icon</Label>
+                                            <div className="grid grid-cols-8 gap-2 mt-1.5">
+                                                {availableIcons.map((icon) => {
+                                                    const IconComponent = icon.icon;
+                                                    const isSelected = modelData.icon === icon.id;
+                                                    return (
+                                                        <button
+                                                            key={icon.id}
+                                                            className={`aspect-square p-2 border rounded-lg hover:border-primary transition-colors ${isSelected ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                                                                }`}
+                                                            onClick={() => handleIconSelect(icon.id)}
+                                                            type="button"
+                                                        >
+                                                            <IconComponent className="h-full w-full" />
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     </div>
+                                </div>
 
-                                    <div className="pt-6 border-t">
-                                        <div className="bg-muted/30 rounded-lg p-4">
-                                            <div className="space-y-4">
+                                {/* Authentication Section */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                        <Settings className="h-4 w-4" />
+                                        Authentication Settings
+                                    </div>
+                                    <div className="bg-muted/30 rounded-lg p-4 space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-sm font-medium">Authentication Required</h3>
+                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                    Enable if your agent needs API authentication
+                                                </p>
+                                            </div>
+                                            <Switch
+                                                id="is_auth"
+                                                checked={modelData.is_auth}
+                                                onCheckedChange={(checked) => {
+                                                    setModelData({
+                                                        ...modelData,
+                                                        is_auth: checked,
+                                                        app_id: checked ? modelData.app_id : 0,
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+
+                                        {modelData.is_auth && (
+                                            <div className="space-y-4 pt-4 border-t border-border/50">
                                                 <div>
-                                                    <h3 className="text-base font-semibold mb-4">Permission Settings</h3>
-                                                    <Label className="text-sm font-medium">Permission Type</Label>
-                                                    <div className="flex items-center gap-4 mt-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <input
-                                                                type="radio"
-                                                                id="global"
-                                                                name="permission_type"
-                                                                value="global"
-                                                                checked={modelData.permission.type === 'global'}
-                                                                onChange={(e) => setModelData({
+                                                    <Label htmlFor="app_id" className="text-sm font-medium">App Type</Label>
+                                                    {isLoadingApps ? (
+                                                        <Skeleton className="h-9 w-full mt-1.5" />
+                                                    ) : (
+                                                        <select
+                                                            id="app_id"
+                                                            className="w-full mt-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                            value={modelData.app_id?.toString() || ''}
+                                                            onChange={(e) => {
+                                                                setModelData({
                                                                     ...modelData,
-                                                                    permission: {
-                                                                        type: 'global',
-                                                                        restricted_to: [],
-                                                                        restricted_users: [],
-                                                                        restricted_workspaces: []
-                                                                    }
-                                                                })}
-                                                                className="h-4 w-4"
-                                                            />
-                                                            <Label htmlFor="global" className="text-sm font-normal">Global</Label>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <input
-                                                                type="radio"
-                                                                id="restricted"
-                                                                name="permission_type"
-                                                                value="restricted"
-                                                                checked={modelData.permission.type === 'restricted'}
-                                                                onChange={(e) => setModelData({
-                                                                    ...modelData,
-                                                                    permission: {
-                                                                        ...modelData.permission,
-                                                                        type: 'restricted'
-                                                                    }
-                                                                })}
-                                                                className="h-4 w-4"
-                                                            />
-                                                            <Label htmlFor="restricted" className="text-sm font-normal">Restricted</Label>
-                                                        </div>
-                                                    </div>
+                                                                    app_id: parseInt(e.target.value),
+                                                                });
+                                                            }}
+                                                            required
+                                                        >
+                                                            <option value="0" disabled>Select app type</option>
+                                                            {appOptions.map((app) => (
+                                                                <option key={app.id} value={app.id}>
+                                                                    {app.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                    {appOptions.find(app => app.id === modelData.app_id)?.description && (
+                                                        <p className="text-xs text-muted-foreground mt-1.5">
+                                                            {appOptions.find(app => app.id === modelData.app_id)?.description}
+                                                        </p>
+                                                    )}
                                                 </div>
 
-                                                {modelData.permission.type === 'restricted' && (
+                                                {appOptions.find(app => app.id === modelData.app_id)?.fields && (
                                                     <div>
-                                                        <Label className="text-sm font-medium">Restrict Access To</Label>
-                                                        <div className="flex items-center gap-4 mt-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    id="user"
-                                                                    checked={modelData.permission.restricted_to?.includes('user')}
-                                                                    onChange={(e) => {
-                                                                        const currentRestrictions = modelData.permission.restricted_to || [];
-                                                                        const newRestrictions = e.target.checked
-                                                                            ? [...currentRestrictions, 'user' as RestrictedPermissionOption]
-                                                                            : currentRestrictions.filter(r => r !== 'user');
-                                                                        setModelData({
-                                                                            ...modelData,
-                                                                            permission: {
-                                                                                ...modelData.permission,
-                                                                                restricted_to: newRestrictions
-                                                                            }
-                                                                        });
-                                                                    }}
-                                                                    className="h-4 w-4"
-                                                                />
-                                                                <Label htmlFor="user" className="text-sm font-normal">User</Label>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    id="workspace"
-                                                                    checked={modelData.permission.restricted_to?.includes('workspace')}
-                                                                    onChange={(e) => {
-                                                                        const currentRestrictions = modelData.permission.restricted_to || [];
-                                                                        const newRestrictions = e.target.checked
-                                                                            ? [...currentRestrictions, 'workspace' as RestrictedPermissionOption]
-                                                                            : currentRestrictions.filter(r => r !== 'workspace');
-                                                                        setModelData({
-                                                                            ...modelData,
-                                                                            permission: {
-                                                                                ...modelData.permission,
-                                                                                restricted_to: newRestrictions
-                                                                            }
-                                                                        });
-                                                                    }}
-                                                                    className="h-4 w-4"
-                                                                />
-                                                                <Label htmlFor="workspace" className="text-sm font-normal">Workspace</Label>
-                                                            </div>
+                                                        <Label className="text-sm font-medium">Required Fields</Label>
+                                                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                            {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
+                                                                <Badge key={index} variant="outline" className="text-xs">
+                                                                    {field}
+                                                                </Badge>
+                                                            ))}
                                                         </div>
                                                     </div>
                                                 )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
 
-                                                {modelData.permission.type === 'restricted' && modelData.permission.restricted_to?.includes('user') && (
-                                                    <div className="mt-4">
+                                {/* Permission Settings */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                        <Code2 className="h-4 w-4" />
+                                        Permission Settings
+                                    </div>
+                                    <div className="bg-muted/30 rounded-lg p-4 space-y-4">
+                                        <div>
+                                            <Label className="text-sm font-medium">Permission Type</Label>
+                                            <div className="flex items-center gap-4 mt-2">
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="radio"
+                                                        id="global"
+                                                        name="permission_type"
+                                                        value="global"
+                                                        checked={modelData.permission.type === 'global'}
+                                                        onChange={(e) => setModelData({
+                                                            ...modelData,
+                                                            permission: {
+                                                                type: 'global',
+                                                                restricted_to: [],
+                                                                restricted_users: [],
+                                                                restricted_workspaces: []
+                                                            }
+                                                        })}
+                                                        className="h-4 w-4"
+                                                    />
+                                                    <Label htmlFor="global" className="text-sm font-normal">Global</Label>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="radio"
+                                                        id="restricted"
+                                                        name="permission_type"
+                                                        value="restricted"
+                                                        checked={modelData.permission.type === 'restricted'}
+                                                        onChange={(e) => setModelData({
+                                                            ...modelData,
+                                                            permission: {
+                                                                ...modelData.permission,
+                                                                type: 'restricted'
+                                                            }
+                                                        })}
+                                                        className="h-4 w-4"
+                                                    />
+                                                    <Label htmlFor="restricted" className="text-sm font-normal">Restricted</Label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {modelData.permission.type === 'restricted' && (
+                                            <>
+                                                <div className="pt-4 border-t">
+                                                    <Label className="text-sm font-medium">Restrict Access To</Label>
+                                                    <div className="flex items-center gap-4 mt-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                id="user"
+                                                                checked={modelData.permission.restricted_to?.includes('user')}
+                                                                onChange={(e) => {
+                                                                    const currentRestrictions = modelData.permission.restricted_to || [];
+                                                                    const newRestrictions = e.target.checked
+                                                                        ? [...currentRestrictions, 'user' as RestrictedPermissionOption]
+                                                                        : currentRestrictions.filter(r => r !== 'user');
+                                                                    setModelData({
+                                                                        ...modelData,
+                                                                        permission: {
+                                                                            ...modelData.permission,
+                                                                            restricted_to: newRestrictions
+                                                                        }
+                                                                    });
+                                                                }}
+                                                                className="h-4 w-4"
+                                                            />
+                                                            <Label htmlFor="user" className="text-sm font-normal">User</Label>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                id="workspace"
+                                                                checked={modelData.permission.restricted_to?.includes('workspace')}
+                                                                onChange={(e) => {
+                                                                    const currentRestrictions = modelData.permission.restricted_to || [];
+                                                                    const newRestrictions = e.target.checked
+                                                                        ? [...currentRestrictions, 'workspace' as RestrictedPermissionOption]
+                                                                        : currentRestrictions.filter(r => r !== 'workspace');
+                                                                    setModelData({
+                                                                        ...modelData,
+                                                                        permission: {
+                                                                            ...modelData.permission,
+                                                                            restricted_to: newRestrictions
+                                                                        }
+                                                                    });
+                                                                }}
+                                                                className="h-4 w-4"
+                                                            />
+                                                            <Label htmlFor="workspace" className="text-sm font-normal">Workspace</Label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {modelData.permission.restricted_to?.includes('user') && (
+                                                    <div className="pt-4 border-t">
                                                         <UserSearch
                                                             selectedUserIds={modelData.permission.restricted_users || []}
                                                             onUserSelect={(users) => setModelData({
@@ -487,8 +449,8 @@ export function EditModelDialog({
                                                     </div>
                                                 )}
 
-                                                {modelData.permission.type === 'restricted' && modelData.permission.restricted_to?.includes('workspace') && (
-                                                    <div className="mt-4">
+                                                {modelData.permission.restricted_to?.includes('workspace') && (
+                                                    <div className="pt-4 border-t">
                                                         <WorkspaceSearch
                                                             selectedWorkspaceIds={modelData.permission.restricted_workspaces || []}
                                                             onWorkspaceSelect={(workspaces) => setModelData({
@@ -501,105 +463,118 @@ export function EditModelDialog({
                                                         />
                                                     </div>
                                                 )}
-                                            </div>
-                                        </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Footer */}
-                        <div className="shrink-0 border-t bg-muted/30 p-6">
-                            <div className="flex items-center justify-between">
-                                <div className="text-sm text-muted-foreground">
-                                    All fields marked with <span className="text-destructive">*</span> are required
+                            {/* Right Column - Configuration */}
+                            <div className="space-y-6">
+                                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                    <Settings className="h-4 w-4" />
+                                    Configuration
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <Button
-                                        onClick={handleSubmit}
-                                        disabled={isSubmitting}
-                                        size="lg"
-                                        className="min-w-[120px]"
-                                    >
-                                        {isSubmitting ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Updating...
-                                            </>
-                                        ) : (
-                                            'Update Agent'
-                                        )}
-                                    </Button>
+
+                                {/* Variables Info */}
+                                <div className="bg-muted/30 rounded-lg p-4 space-y-4">
+                                    <h4 className="text-sm font-medium">Available Variables</h4>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <code className="px-1.5 py-0.5 rounded text-xs bg-muted">user.id</code>
+                                            <span className="text-xs text-muted-foreground">User's ID</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <code className="px-1.5 py-0.5 rounded text-xs bg-muted">user.email</code>
+                                            <span className="text-xs text-muted-foreground">User's email</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <code className="px-1.5 py-0.5 rounded text-xs bg-muted">timezone</code>
+                                            <span className="text-xs text-muted-foreground">User's timezone</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <code className="px-1.5 py-0.5 rounded text-xs bg-muted">name</code>
+                                            <span className="text-xs text-muted-foreground">User's name</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <code className="px-1.5 py-0.5 rounded text-xs bg-muted">instruction</code>
+                                            <span className="text-xs text-muted-foreground">Agent's instruction</span>
+                                        </div>
+                                    </div>
+
+                                    {modelData.is_auth && appOptions.find(app => app.id === modelData.app_id)?.fields && (
+                                        <div className="pt-4 border-t">
+                                            <h4 className="text-sm font-medium mb-2">Connection Variables</h4>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
+                                                    <div key={index} className="flex items-center gap-2">
+                                                        <code className="px-1.5 py-0.5 rounded text-xs bg-muted">vars.{field}</code>
+                                                        <span className="text-xs text-muted-foreground">Connection {field}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Configuration Fields */}
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="chatflow_id" className="text-sm font-medium">
+                                            Chatflow ID
+                                            <span className="text-destructive ml-1">*</span>
+                                        </Label>
+                                        <Input
+                                            id="chatflow_id"
+                                            placeholder="Enter your chatflow ID"
+                                            value={modelData.chatflow_id}
+                                            onChange={(e) => setModelData({ ...modelData, chatflow_id: e.target.value })}
+                                            className="mt-1.5"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="code" className="text-sm font-medium">
+                                            Override Config JSON
+                                            <span className="text-destructive ml-1">*</span>
+                                        </Label>
+                                        <div className="mt-1.5">
+                                            <Textarea
+                                                id="code"
+                                                placeholder="Enter your JSON configuration"
+                                                value={modelData.override_config}
+                                                onChange={(e) => setModelData({ ...modelData, override_config: e.target.value })}
+                                                className="h-[400px] font-mono text-sm"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    {/* Right Section - Code Editor */}
-                    <div className="w-[45%] min-w-[600px] flex flex-col">
-                        <div className="shrink-0 p-6 border-b bg-muted/30">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-base font-semibold">Code Implementation</h3>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                        Write your agent's logic and behavior
-                                    </p>
-                                </div>
-                            </div>
+                {/* Footer - Fixed */}
+                <div className="shrink-0 p-6 border-t bg-background">
+                    <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                            All fields marked with <span className="text-destructive">*</span> are required
                         </div>
-
-                        <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
-                            <div className="shrink-0 bg-muted/30 rounded-lg p-4">
-                                <h4 className="text-sm font-medium mb-2">Available Variables</h4>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="flex items-center gap-2">
-                                        <code className="px-1.5 py-0.5 rounded text-xs bg-muted">user.id</code>
-                                        <span className="text-xs text-muted-foreground">User's ID</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <code className="px-1.5 py-0.5 rounded text-xs bg-muted">user.email</code>
-                                        <span className="text-xs text-muted-foreground">User's email</span>
-                                    </div>
-                                </div>
-
-                                {modelData.is_auth && appOptions.find(app => app.id === modelData.app_id)?.fields && (
-                                    <div className="mt-3 pt-3 border-t">
-                                        <h4 className="text-sm font-medium mb-2">Connection Variables</h4>
-                                        <div className="grid grid-cols-1 gap-2">
-                                            {appOptions.find(app => app.id === modelData.app_id)?.fields.map((field, index) => (
-                                                <div key={index} className="flex items-center gap-2">
-                                                    <code className="px-1.5 py-0.5 rounded text-xs bg-muted">vars.{field}</code>
-                                                    <span className="text-xs text-muted-foreground">Connection {field}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex-1 border rounded-lg overflow-hidden bg-background">
-                                <Editor
-                                    height="100%"
-                                    defaultLanguage="javascript"
-                                    theme="vs-dark"
-                                    value={modelData.code}
-                                    onChange={(value) => {
-                                        setModelData({
-                                            ...modelData,
-                                            code: value || "",
-                                        });
-                                    }}
-                                    options={{
-                                        minimap: { enabled: false },
-                                        fontSize: 14,
-                                        lineNumbers: "on",
-                                        scrollBeyondLastLine: false,
-                                        automaticLayout: true,
-                                        tabSize: 2,
-                                    }}
-                                />
-                            </div>
-                        </div>
+                        <Button
+                            onClick={handleSubmit}
+                            disabled={isSubmitting}
+                            size="lg"
+                            className="min-w-[120px]"
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Updating...
+                                </>
+                            ) : (
+                                'Update Agent'
+                            )}
+                        </Button>
                     </div>
                 </div>
             </DialogContent>

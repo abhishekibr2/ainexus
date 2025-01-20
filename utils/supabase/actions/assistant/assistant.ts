@@ -19,7 +19,7 @@ const modelFormSchema = z.object({
     }).optional(),
     icon: z.string(),
     is_auth: z.boolean(),
-    code: z.string().optional(),
+    override_config: z.string().optional(),
     created_by: z.string().uuid(),
     app_id: z.number().int().nullable(),
     permission: z.object({
@@ -28,6 +28,7 @@ const modelFormSchema = z.object({
         restricted_users: z.array(z.string()).optional(),
         restricted_workspaces: z.array(z.number()).optional()
     }).optional(),
+    chatflow_id: z.string(),
 });
 
 type ModelFormValues = Omit<z.infer<typeof modelFormSchema>, 'id' | 'created_at' | 'created_by'>;
@@ -55,7 +56,8 @@ export async function createModel(data: ModelFormValues, userId: string) {
             description: validatedData.description || null,
             icon: validatedData.icon,
             is_auth: validatedData.is_auth,
-            code: validatedData.code,
+            chatflow_id: validatedData.chatflow_id,
+            override_config: validatedData.override_config,
             created_by: userId,
             app_id: validatedData.app_id,
             permission: permission
@@ -92,7 +94,8 @@ export async function updateModel(modelId: number, data: ModelFormValues, userId
             description: validatedData.description,
             icon: validatedData.icon,
             is_auth: validatedData.is_auth,
-            code: validatedData.code,
+            chatflow_id: validatedData.chatflow_id,
+            override_config: validatedData.override_config,
             app_id: validatedData.app_id,
             permission: permission
         })

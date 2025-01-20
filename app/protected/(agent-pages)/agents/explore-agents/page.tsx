@@ -29,6 +29,7 @@ import { User } from "@supabase/supabase-js";
 import { AddConnectionDialog } from "../../connections/components/add-connection-dialog";
 import { getApplications } from "@/utils/supabase/actions/user/connections";
 import { getUserWorkspaces } from "@/utils/supabase/actions/workspace/workspace";
+import { getUserTimezone } from "@/utils/supabase/actions/user/onboarding";
 
 // Step form schema
 const modelConfigSchema = z.object({
@@ -868,12 +869,14 @@ const AccessibleVariablesDialog = ({
     model,
     user,
     connectionKeys,
-    selectedConnection
+    selectedConnection,
+    timezone
 }: {
     model: Model;
     user: User | null;
     connectionKeys: Record<string, string>;
     selectedConnection?: Connection;
+    timezone: string;
 }) => {
     const [open, setOpen] = useState(false);
     return (
@@ -903,6 +906,14 @@ const AccessibleVariablesDialog = ({
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
                                     <span className="text-muted-foreground">{user?.email}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">timezone</code>
+                                    <span className="text-muted-foreground">{timezone}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">name</code>
+                                    <span className="text-muted-foreground">{user?.user_metadata?.name}</span>
                                 </div>
                             </div>
                         </div>
@@ -943,212 +954,6 @@ const AccessibleVariablesDialog = ({
     );
 };
 
-const ModelSettingsDialog = ({
-    model,
-    onDelete,
-    onSave,
-    isAdmin
-}: {
-    model: Model;
-    onDelete: () => Promise<void>;
-    onSave: (settings: any) => Promise<void>;
-    isAdmin: boolean;
-}) => {
-    const { toast } = useToast();
-    const params = useParams();
-    const id = params?.id as string;
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [availableConnections, setAvailableConnections] = useState<Connection[]>([]);
-    const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
-    const [connectionFieldValues, setConnectionFieldValues] = useState<Record<string, string>>({});
-    const [selectedConnection, setSelectedConnection] = useState<Connection | undefined>();
-    const [user, setUser] = useState<User | null>(null);
-
-    const form = useForm<ModelConfigValues>({
-        resolver: zodResolver(modelConfigSchema),
-        defaultValues: {
-            basic: {
-                override_name: model.name,
-                override_description: model.description,
-            },
-            auth: {
-                user_connection_id: undefined,
-                config_keys: {},
-            },
-            advanced: {
-                override_instructions: "",
-                permission_scope: "private",
-            },
-        }
-    });
-
-    // Get user on mount
-    useEffect(() => {
-        const getUser = async () => {
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-        };
-        getUser();
-    }, []);
-
-    // Update form when selectedConnectionId changes
-    useEffect(() => {
-        if (selectedConnectionId) {
-            form.setValue('auth.user_connection_id', selectedConnectionId);
-        }
-    }, [selectedConnectionId, form]);
-
-    useEffect(() => {
-        const fetchConnections = async () => {
-            try {
-                const supabase = createClient();
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
-
-                const { data: connections } = await getUserConnections(user.id);
-                if (connections) {
-                    // Filter connections for this app type
-                    const appConnections = connections.filter(conn => conn.app_id === model.app_id);
-                    setAvailableConnections(appConnections);
-
-                    // Get the current model data to find its connection
-                    const modelData = await getUserAssignedModel(parseInt(id));
-                    if (modelData?.user_connection_id) {
-                        setSelectedConnectionId(modelData.user_connection_id);
-                        // Find the connection details
-                        const currentConnection = appConnections.find(conn =>
-                            conn.id === modelData.user_connection_id);
-                        if (currentConnection?.parsedConnectionKeys) {
-                            setSelectedConnection(currentConnection);
-                            const values = Object.fromEntries(
-                                currentConnection.parsedConnectionKeys.map((pair: { key: string; value: string }) => [pair.key, pair.value])
-                            );
-                            setConnectionFieldValues(values);
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching connections:', error);
-            }
-        };
-
-        if (model.is_auth) {
-            fetchConnections();
-        }
-    }, [model, id]);
-
-    // Handle connection selection
-    const handleConnectionChange = (value: string) => {
-        const selectedConn = availableConnections.find(
-            conn => conn.id === parseInt(value)
-        );
-
-        if (selectedConn?.parsedConnectionKeys) {
-            const values = Object.fromEntries(
-                selectedConn.parsedConnectionKeys.map(({ key, value }) => [key, value])
-            );
-            setConnectionFieldValues(values);
-            setSelectedConnectionId(selectedConn.id);
-            setSelectedConnection(selectedConn);
-            form.setValue('auth.user_connection_id', selectedConn.id);
-        }
-    };
-
-    const onFormSubmit = async (data: ModelConfigValues) => {
-        try {
-            await onSave({
-                ...data,
-                auth: {
-                    ...data.auth,
-                    user_connection_id: selectedConnectionId || undefined
-                }
-            });
-
-            // After successful save, refresh the connection data
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const { data: connections } = await getUserConnections(user.id);
-            if (connections) {
-                const appConnections = connections.filter(conn => conn.app_id === model.app_id);
-                setAvailableConnections(appConnections);
-
-                // Get the current model data to find its connection
-                const modelData = await getUserAssignedModel(parseInt(id));
-                if (modelData?.user_connection_id) {
-                    setSelectedConnectionId(modelData.user_connection_id);
-                    // Find the connection details
-                    const currentConnection = appConnections.find(conn =>
-                        conn.id === modelData.user_connection_id);
-                    if (currentConnection?.parsedConnectionKeys) {
-                        setSelectedConnection(currentConnection);
-                        const values = Object.fromEntries(
-                            currentConnection.parsedConnectionKeys.map((pair: { key: string; value: string }) => [pair.key, pair.value])
-                        );
-                        setConnectionFieldValues(values);
-                    }
-                }
-            }
-
-            toast({
-                title: "Success",
-                description: "Settings saved successfully",
-            });
-        } catch (error) {
-            console.error('Error saving settings:', error);
-            toast({
-                title: "Error",
-                description: "Failed to save settings",
-                variant: "destructive",
-            });
-        }
-    };
-
-    return (
-        <Dialog>
-            <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                    <DialogTitle>Agent Settings</DialogTitle>
-                    <DialogDescription>
-                        Configure your agent settings and connections
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="flex items-center gap-2 mb-4">
-                    {isAdmin && (
-                        <AccessibleVariablesDialog
-                            user={user}
-                            model={model}
-                            connectionKeys={connectionFieldValues}
-                            selectedConnection={selectedConnection}
-                        />
-                    )}
-                </div>
-                <Form {...form}>
-                    <FormField
-                        control={form.control}
-                        name="basic.override_name"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Name</FormLabel>
-                                <FormControl>
-                                    <Input {...field} />
-                                </FormControl>
-                            </FormItem>
-                        )}
-                    />
-                </Form>
-            </DialogContent>
-        </Dialog>
-    );
-};
 
 export default function ExploreModels() {
     const [models, setModels] = useState<Model[]>([]);
