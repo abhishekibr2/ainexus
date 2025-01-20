@@ -1,9 +1,24 @@
+'use client'
 import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, Users, Zap } from 'lucide-react'
+import { checkAndUpdateTimezone } from '@/utils/supabase/actions/user/onboarding'
+import { createClient } from '@/utils/supabase/client'
+import { useEffect } from 'react'
 
 export default function DashboardPage() {
+
+  useEffect(() => {
+    const checkTimezone = async () => {
+      const supabase = createClient()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) throw new Error('User not found')
+      await checkAndUpdateTimezone(user.id)
+    }
+    checkTimezone()
+  }, [])
+
   return (
     <div className="container mx-auto px-4">
       <h1 className="text-3xl font-bold">AI Agent Dashboard</h1>

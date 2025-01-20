@@ -15,6 +15,8 @@ interface Model {
     is_auth: boolean;
     app_id: number;
     fields?: string[];
+    chatflow_id: string;
+    override_config?: string;
 }
 
 interface ChatHeaderProps {
@@ -28,6 +30,7 @@ interface ChatHeaderProps {
     onSave: (settings: any) => Promise<void>;
     onConnectionKeysChange: (keys: any) => void;
     availableIcons: { [key: string]: any };
+    instruction: string;
     showFullHeader?: boolean;
 }
 
@@ -42,7 +45,8 @@ export function ChatHeader({
     onSave,
     onConnectionKeysChange,
     availableIcons,
-    showFullHeader = false
+    showFullHeader = false,
+    instruction
 }: ChatHeaderProps) {
     return (
         <motion.div
@@ -78,7 +82,7 @@ export function ChatHeader({
                         >
                             <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
                         </Button>
-                        {isAdmin && <AccessibleVariablesDialog user={user} model={model} connectionKeys={connectionKeys} />}
+                        {isAdmin && <AccessibleVariablesDialog user={user} model={model} connectionKeys={connectionKeys} instruction={instruction} />}
                         <ModelSettingsDialog
                             model={model}
                             connectionKeys={connectionKeys}

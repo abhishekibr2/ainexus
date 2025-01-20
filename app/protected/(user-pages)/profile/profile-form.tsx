@@ -27,13 +27,13 @@ import { getProfile } from "@/utils/supabase/actions/user/profile"
 import { Skeleton } from "@/components/ui/skeleton"
 
 const profileFormSchema = z.object({
-  username: z
+  name: z
     .string()
     .min(2, {
-      message: "Username must be at least 2 characters.",
+      message: "Name must be at least 2 characters.",
     })
     .max(30, {
-      message: "Username must not be longer than 30 characters.",
+      message: "Name must not be longer than 30 characters.",
     }),
   bio: z.string().max(160).min(4),
   urls: z
@@ -52,7 +52,7 @@ export function ProfileForm() {
   const [userId, setUserId] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
   const [defaultValues, setDefaultValues] = useState<Partial<ProfileFormValues>>({
-    username: "",
+    name: "",
     bio: "",
   })
   const supabase = createClient()
@@ -83,11 +83,11 @@ export function ProfileForm() {
           const profile = await getProfile(user.id)
           if (profile) {
             setDefaultValues({
-              username: profile.username || "",
+              name: profile.name || "",
               bio: profile.bio || "",
             })
             form.reset({
-              username: profile.username || "",
+              name: profile.name || "",
               bio: profile.bio || "",
             })
           }
@@ -156,10 +156,10 @@ export function ProfileForm() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <FormField
           control={form.control}
-          name="username"
+          name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Username</FormLabel>
+              <FormLabel>Name</FormLabel>
               <FormControl>
                 <Input placeholder="shadcn" {...field} />
               </FormControl>

@@ -4,13 +4,13 @@ import { z } from "zod"
 import { createClient } from "../../client"
 
 const profileFormSchema = z.object({
-    username: z
+    name: z
         .string()
         .min(2, {
-            message: "Username must be at least 2 characters.",
+            message: "Name must be at least 2 characters.",
         })
         .max(30, {
-            message: "Username must not be longer than 30 characters.",
+            message: "Name must not be longer than 30 characters.",
         }),
     bio: z.string().max(160).min(4),
 })
@@ -59,7 +59,7 @@ export async function updateProfile(data: ProfileFormValues, userId: string) {
         .from('user')
         .upsert({
             id: userId,
-            username: data.username,
+            name: data.name,
             bio: data.bio,
         })
 

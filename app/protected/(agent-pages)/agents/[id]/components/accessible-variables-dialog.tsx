@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Code2, Check } from "lucide-react";
+import { getUserTimezone } from "@/utils/supabase/actions/user/onboarding";
 
 interface Model {
     id: number;
     name: string;
     is_auth: boolean;
+    override_config?: string;
+    chatflow_id: string;
     fields?: string[];
 }
 
@@ -17,14 +20,25 @@ interface AccessibleVariablesDialogProps {
     model: Model;
     user: User | null;
     connectionKeys: any;
+    instruction: string;
 }
 
 export function AccessibleVariablesDialog({
     model,
     user,
+    instruction,
     connectionKeys
 }: AccessibleVariablesDialogProps) {
     const [open, setOpen] = useState(false);
+    const [timezone, setTimezone] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchTimezone = async () => {
+            const timezone = await getUserTimezone(user?.id ?? '')
+            setTimezone(timezone)
+        }
+        fetchTimezone()
+    }, [user])
 
     return (
         <AlertDialog open={open} onOpenChange={setOpen}>
@@ -53,6 +67,26 @@ export function AccessibleVariablesDialog({
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
                                     <span className="text-muted-foreground">{user?.email}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">timezone</code>
+                                    <span className="text-muted-foreground">{timezone}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">name</code>
+                                    <span className="text-muted-foreground">{user?.user_metadata?.name}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">model.chatflow_id</code>
+                                    <span className="text-muted-foreground">{model.chatflow_id}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">model.override_config</code>
+                                    <span className="text-muted-foreground">{model.override_config ? JSON.stringify(model.override_config, null, 0) : ''}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <code className="bg-muted px-1 py-0.5 rounded">instruction</code>
+                                    <span className="text-muted-foreground">{instruction}</span>
                                 </div>
                             </div>
                         </div>

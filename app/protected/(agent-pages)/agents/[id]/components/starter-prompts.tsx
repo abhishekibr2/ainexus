@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 interface StarterPromptsProps {
     onPromptSelect: (prompt: string) => void;
     isTyping: boolean;
-    modelCode: string | null;
+    flowise_id: string | null;
 }
 
 interface StarterPrompt {
@@ -20,12 +20,12 @@ interface ChatbotConfig {
     };
 }
 
-export function StarterPrompts({ onPromptSelect, isTyping, modelCode }: StarterPromptsProps) {
+export function StarterPrompts({ onPromptSelect, isTyping, flowise_id }: StarterPromptsProps) {
     const [prompts, setPrompts] = useState<string[]>([]);
 
     useEffect(() => {
         const fetchPrompts = async () => {
-            if (!modelCode) {
+            if (!flowise_id) {
                 setPrompts([
                     "Can you explain what you can help me with?",
                     "I'm new here. How should I get started?"
@@ -34,7 +34,7 @@ export function StarterPrompts({ onPromptSelect, isTyping, modelCode }: StarterP
             }
 
             try {
-                const response = await fetch(`https://flowise.ibrcloud.com/api/v1/public-chatbotConfig/${modelCode}`);
+                const response = await fetch(`https://flowise.ibrcloud.com/api/v1/public-chatbotConfig/${flowise_id}`);
                 const data: ChatbotConfig = await response.json();
 
                 // Convert the object of prompts to an array of prompt strings
@@ -51,7 +51,7 @@ export function StarterPrompts({ onPromptSelect, isTyping, modelCode }: StarterP
         };
 
         fetchPrompts();
-    }, [modelCode]);
+    }, [flowise_id]);
 
     return (
         <div className="w-full max-w-4xl mx-auto px-4 mb-4">

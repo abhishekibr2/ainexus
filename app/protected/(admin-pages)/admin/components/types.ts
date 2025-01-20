@@ -7,7 +7,6 @@ export interface RestrictedUser {
     id: string;
     email: string;
     name?: string;
-    username?: string;
 }
 
 export interface Permission {
@@ -22,7 +21,8 @@ export interface NewModel {
     description: string;
     icon: string;
     is_auth: boolean;
-    code: string;
+    chatflow_id: string;
+    override_config?: string;
     app_id: number | null;
     permission: Permission;
 }

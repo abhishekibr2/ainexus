@@ -13,10 +13,10 @@ interface ChatInputProps {
     modelName: string;
     showStarterPrompts?: boolean;
     messages: any[];
-    modelCode: string | null;
+    flowise_id: string | null;
 }
 
-export function ChatInput({ isTyping, onSubmit, modelName, showStarterPrompts = true, messages = [], modelCode }: ChatInputProps) {
+export function ChatInput({ isTyping, onSubmit, modelName, showStarterPrompts = true, messages = [], flowise_id }: ChatInputProps) {
     const [input, setInput] = useState('');
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -26,6 +26,7 @@ export function ChatInput({ isTyping, onSubmit, modelName, showStarterPrompts = 
 
         try {
             setInput(''); // Clear input immediately after submission
+            console.log('Submitting message:', trimmedInput);
             await onSubmit(trimmedInput);
         } catch (error) {
             console.error('Error submitting message:', error);
@@ -53,7 +54,7 @@ export function ChatInput({ isTyping, onSubmit, modelName, showStarterPrompts = 
     return (
         <div className="flex flex-col">
             {showStarterPrompts && messages.length === 0 && (
-                <StarterPrompts onPromptSelect={handlePromptSelect} isTyping={isTyping} modelCode={modelCode} />
+                <StarterPrompts onPromptSelect={handlePromptSelect} isTyping={isTyping} flowise_id={flowise_id} />
             )}
             <div className="border-t bg-background p-4 w-full">
                 <div className="max-w-4xl mx-auto">
@@ -63,9 +64,10 @@ export function ChatInput({ isTyping, onSubmit, modelName, showStarterPrompts = 
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 placeholder={`Message ${modelName}...`}
-                                className="w-full rounded-xl pr-32 min-h-[60px] max-h-[120px] resize-none focus:border-gray-600 transition-all"
+                                className="w-full rounded-xl pr-32 min-h-[60px] max-h-[120px] resize-none focus:border-gray-600 transition-all overflow-hidden"
                                 rows={1}
                                 onKeyDown={handleKeyDown}
+                                disabled={isTyping}
                             />
                             <div className="absolute right-3 bottom-3 flex items-center gap-3">
                                 <motion.button
@@ -73,6 +75,7 @@ export function ChatInput({ isTyping, onSubmit, modelName, showStarterPrompts = 
                                     whileTap={{ scale: 0.95 }}
                                     type="button"
                                     className="p-1.5"
+                                    disabled={isTyping}
                                 >
                                     <Mic className="w-5 h-5" />
                                 </motion.button>
@@ -81,6 +84,7 @@ export function ChatInput({ isTyping, onSubmit, modelName, showStarterPrompts = 
                                     whileTap={{ scale: 0.95 }}
                                     type="button"
                                     className="p-1.5"
+                                    disabled={isTyping}
                                 >
                                     <Paperclip className="w-5 h-5" />
                                 </motion.button>
