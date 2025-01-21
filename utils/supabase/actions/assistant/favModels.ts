@@ -2,7 +2,7 @@
 
 import { createClient } from '../../client';
 
-export async function addToFavorites(userId: string, modelId: number) {
+export async function addToFavorites(userId: string, modelId: string) {
     try {
         const supabase = await createClient();
 
@@ -36,7 +36,7 @@ export async function addToFavorites(userId: string, modelId: number) {
     }
 }
 
-export async function removeFromFavorites(userId: string, modelId: number) {
+export async function removeFromFavorites(userId: string, modelId: string) {
     try {
         const supabase = await createClient();
 
@@ -51,7 +51,7 @@ export async function removeFromFavorites(userId: string, modelId: number) {
 
         // Remove the model id from the array
         const currentFavs = userData?.fav_models || [];
-        const newFavs = currentFavs.filter((id: number) => id !== modelId);
+        const newFavs = currentFavs.filter((id: string) => id !== modelId);
 
         // Update the user's fav_models
         const { error: updateError } = await supabase
@@ -67,7 +67,7 @@ export async function removeFromFavorites(userId: string, modelId: number) {
     }
 }
 
-export async function checkIsFavorite(userId: string, modelId: number) {
+export async function checkIsFavorite(userId: string, modelId: string) {
     try {
         const supabase = await createClient();
 

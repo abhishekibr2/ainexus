@@ -136,6 +136,9 @@ export async function getModels(userId: string) {
             *,
             application:app_id (
                 fields
+            ),
+            created_by:user (
+                email
             )
         `)
         .order('created_at', { ascending: false })

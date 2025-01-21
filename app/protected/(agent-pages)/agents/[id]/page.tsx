@@ -112,7 +112,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                 ] = await Promise.all([
                     getUserName(user.id),
                     getUserTimezone(user.id),
-                    checkIsFavorite(user.id, parseInt(id)),
+                    checkIsFavorite(user.id, id),
                     getUserAssignedModels(user.id),
                     getModels(user.id)
                 ]);
@@ -122,7 +122,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     return;
                 }
 
-                const hasModelAccess = assignedModels?.some(m => m.id === parseInt(id));
+                const hasModelAccess = assignedModels?.some(m => m.id === id);
                 if (!hasModelAccess) {
                     if (isMounted) {
                         setModelData(prev => ({
@@ -137,9 +137,9 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     return;
                 }
 
-                const modelId = assignedModels?.find(m => m.id === parseInt(id))?.assistant_id;
+                const modelId = assignedModels?.find(m => m.id === id)?.assistant_id;
                 const foundModel = models.find(m => m.id === modelId);
-                const instruction = assignedModels?.find(m => m.id === parseInt(id))?.instruction;
+                const instruction = assignedModels?.find(m => m.id === id)?.instruction;
                 setInstruction(instruction);
 
                 if (!foundModel || !isMounted) {
@@ -180,7 +180,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     return;
                 }
 
-                const assignedModel = await getUserAssignedModel(parseInt(id));
+                const assignedModel = await getUserAssignedModel(id);
                 if (!isMounted) {
                     setIsLoading(false);
                     return;
@@ -274,12 +274,12 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
 
             if (!user) throw new Error("User not authenticated");
 
-            const { error } = await deleteUserAssignedModel(parseInt(id));
+            const { error } = await deleteUserAssignedModel(id);
 
             if (error) throw error;
 
             window.dispatchEvent(new CustomEvent('modelDeleted', {
-                detail: { modelId: parseInt(id) }
+                detail: { modelId: id }
             }));
 
             toast({
@@ -305,7 +305,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
             if (!user) throw new Error("User not authenticated");
 
             if (modelData.isFavorite) {
-                const result = await removeFromFavorites(user.id, parseInt(id));
+                const result = await removeFromFavorites(user.id, id);
                 if (result.success) {
                     setModelData(prev => ({ ...prev, isFavorite: false }));
                     toast({
@@ -313,13 +313,13 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                         description: "Removed from favorites",
                     });
                     window.dispatchEvent(new CustomEvent('modelUnfavorited', {
-                        detail: { modelId: parseInt(id) }
+                        detail: { modelId: id }
                     }));
                 } else {
                     throw new Error(result.message);
                 }
             } else {
-                const result = await addToFavorites(user.id, parseInt(id));
+                const result = await addToFavorites(user.id, id);
                 if (result.success) {
                     setModelData(prev => ({ ...prev, isFavorite: true }));
                     toast({
@@ -327,7 +327,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                         description: "Added to favorites",
                     });
                     window.dispatchEvent(new CustomEvent('modelFavorited', {
-                        detail: { modelId: parseInt(id) }
+                        detail: { modelId: id }
                     }));
                 } else {
                     throw new Error(result.message);
@@ -356,7 +356,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
 
     return (
         <ChatContainer
-            userAssignedModelId={parseInt(id)}
+            userAssignedModelId={id}
             model={modelData.model}
             user={modelData.user}
             instruction={instruction}
