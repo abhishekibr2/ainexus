@@ -19,7 +19,7 @@ const modelFormSchema = z.object({
     }).optional(),
     icon: z.string(),
     is_auth: z.boolean(),
-    override_config: z.string().optional(),
+    override_config: z.any().nullable(),
     created_by: z.string().uuid(),
     app_id: z.number().int().nullable(),
     permission: z.object({
@@ -57,7 +57,7 @@ export async function createModel(data: ModelFormValues, userId: string) {
             icon: validatedData.icon,
             is_auth: validatedData.is_auth,
             chatflow_id: validatedData.chatflow_id,
-            override_config: validatedData.override_config,
+            override_config: validatedData.override_config ? JSON.stringify(validatedData.override_config) : null,
             created_by: userId,
             app_id: validatedData.app_id,
             permission: permission

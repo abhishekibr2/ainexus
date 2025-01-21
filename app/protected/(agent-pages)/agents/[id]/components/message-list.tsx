@@ -2,12 +2,12 @@
 
 import { Bot, User2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { Components } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, memo } from "react";
 
 interface Message {
     id: string;
@@ -27,12 +27,143 @@ interface MessageListProps {
     availableIcons: { [key: string]: any };
 }
 
+// Memoized markdown components to prevent unnecessary re-renders
+const MemoizedMarkdownComponents = {
+    code: memo(({ node, inline, className, children, ...props }: any) => {
+        const match = /language-(\w+)/.exec(className || '');
+        return !inline && match ? (
+            <SyntaxHighlighter
+                {...props}
+                style={oneDark}
+                language={match[1]}
+                PreTag="div"
+                className="rounded-md my-4"
+            >
+                {String(children).replace(/\n$/, '')}
+            </SyntaxHighlighter>
+        ) : (
+            <code {...props} className="bg-muted-foreground/20 rounded px-1">
+                {children}
+            </code>
+        );
+    }),
+    p: memo(({ children }: { children: React.ReactNode }) => <p className="mb-4 last:mb-0">{children}</p>),
+    ul: memo(({ children }: { children: React.ReactNode }) => <ul className="list-disc pl-4 mb-4 last:mb-0 space-y-2">{children}</ul>),
+    ol: memo(({ children }: { children: React.ReactNode }) => <ol className="list-decimal pl-4 mb-4 last:mb-0 space-y-2">{children}</ol>),
+    li: memo(({ children }: { children: React.ReactNode }) => <li>{children}</li>),
+    h1: memo(({ children }: { children: React.ReactNode }) => <h1 className="text-xl font-bold mb-4">{children}</h1>),
+    h2: memo(({ children }: { children: React.ReactNode }) => <h2 className="text-lg font-bold mb-3">{children}</h2>),
+    h3: memo(({ children }: { children: React.ReactNode }) => <h3 className="text-md font-bold mb-2">{children}</h3>),
+    a: memo(({ children, href }: { children: React.ReactNode; href: string }) => (
+        <a href={href} className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">
+            {children}
+        </a>
+    )),
+    blockquote: memo(({ children }: { children: React.ReactNode }) => (
+        <blockquote className="border-l-2 border-gray-300 pl-4 italic my-4">
+            {children}
+        </blockquote>
+    ))
+};
+
+const MessageBubble = memo(({ message, model, availableIcons }: {
+    message: Message;
+    model: Model;
+    availableIcons: { [key: string]: any };
+}) => {
+    const isUser = message.role === 'user';
+    const IconComponent = isUser ? User2 : (model.icon ? availableIcons[model.icon] || Bot : Bot);
+
+    // Don't render empty assistant messages
+    if (!isUser && !message.content) return null;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            layout
+            className={`flex ${isUser ? 'justify-end' : 'justify-start'} items-start gap-3`}
+        >
+            {!isUser && (
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                    <IconComponent className="w-5 h-5" />
+                </div>
+            )}
+
+            <div className={`rounded-2xl p-4 max-w-[80%] ${isUser
+                ? 'bg-primary text-primary-foreground rounded-tr-none ml-8'
+                : 'bg-muted rounded-tl-none mr-8'
+                }`}>
+                {isUser ? (
+                    <div className="text-sm">{message.content}</div>
+                ) : (
+                    <ReactMarkdown
+                        className="text-sm prose dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0"
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        components={MemoizedMarkdownComponents as Components}
+                    >
+                        {message.content}
+                    </ReactMarkdown>
+                )}
+            </div>
+
+            {isUser && (
+                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+                    <IconComponent className="w-5 h-5 text-primary-foreground" />
+                </div>
+            )}
+        </motion.div>
+    );
+});
+
+MessageBubble.displayName = 'MessageBubble';
+
+
+const TypingIndicator = memo(() => (
+    <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        layout
+        className="flex items-start gap-3"
+    >
+        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+            <Bot className="w-5 h-5" />
+        </div>
+        <div className="bg-muted rounded-2xl rounded-tl-none p-4 flex items-center min-w-[60px]">
+            <div className="flex items-center gap-2">
+                {[0, 1, 2].map((i) => (
+                    <motion.div
+                        key={i}
+                        className="w-2.5 h-2.5 rounded-full bg-foreground/25"
+                        animate={{
+                            scale: [0.8, 1.2, 0.8],
+                            opacity: [0.3, 1, 0.3]
+                        }}
+                        transition={{
+                            duration: 0.8,
+                            repeat: Infinity,
+                            delay: i * 0.15,
+                            ease: "easeInOut"
+                        }}
+                    />
+                ))}
+            </div>
+        </div>
+    </motion.div>
+));
+
+TypingIndicator.displayName = 'TypingIndicator';
+
+
 export function MessageList({ messages, model, isTyping, availableIcons }: MessageListProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = useCallback(() => {
         if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: "instant" });
+            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, []);
 
@@ -42,148 +173,29 @@ export function MessageList({ messages, model, isTyping, availableIcons }: Messa
 
     return (
         <div className="h-full overflow-y-auto px-4 py-6">
-            <div className="max-w-4xl mx-auto space-y-6 pb-4">
-                {messages.map((m, i) => (
-                    <div
-                        key={m.id}
-                        className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} items-start gap-2`}
-                    >
-                        {m.role === 'assistant' && (
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden">
-                                {(() => {
-                                    const IconComponent = model.icon ? availableIcons[model.icon] || Bot : Bot;
-                                    return <IconComponent className="w-5 h-5" />;
-                                })()}
-                            </div>
-                        )}
-                        <div
-                            className={`rounded-2xl p-4 max-w-[70%] min-h-[60px] ${m.role === 'user'
-                                ? 'bg-primary text-primary-foreground rounded-tr-none'
-                                : 'bg-muted rounded-tl-none'
-                                }`}
-                        >
-                            {m.role === 'assistant' ? (
-                                <ReactMarkdown
-                                    className="text-2sm prose dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0"
-                                    remarkPlugins={[remarkGfm, remarkMath]}
-                                    components={{
-                                        code({ node, inline, className, children, ...props }: any) {
-                                            const match = /language-(\w+)/.exec(className || '');
-                                            return !inline && match ? (
-                                                <SyntaxHighlighter
-                                                    {...props}
-                                                    style={oneDark}
-                                                    language={match[1]}
-                                                    PreTag="div"
-                                                    className="rounded-md"
-                                                >
-                                                    {String(children).replace(/\n$/, '')}
-                                                </SyntaxHighlighter>
-                                            ) : (
-                                                <code {...props} className={className}>
-                                                    {children}
-                                                </code>
-                                            );
-                                        },
-                                        p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
-                                        ul: ({ children }) => <ul className="list-disc pl-4 mb-4 last:mb-0">{children}</ul>,
-                                        ol: ({ children }) => <ol className="list-decimal pl-4 mb-4 last:mb-0">{children}</ol>,
-                                        li: ({ children }) => <li className="mb-1">{children}</li>,
-                                        h1: ({ children }) => <h1 className="text-xl font-bold mb-4">{children}</h1>,
-                                        h2: ({ children }) => <h2 className="text-lg font-bold mb-3">{children}</h2>,
-                                        h3: ({ children }) => <h3 className="text-md font-bold mb-2">{children}</h3>,
-                                        a: ({ children, href }) => (
-                                            <a href={href} className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">
-                                                {children}
-                                            </a>
-                                        ),
-                                        blockquote: ({ children }) => (
-                                            <blockquote className="border-l-2 border-gray-300 pl-4 italic my-4">
-                                                {children}
-                                            </blockquote>
-                                        ),
-                                    }}
-                                >
-                                    {m.content || ' '}
-                                </ReactMarkdown>
-                            ) : (
-                                <div className="text-2sm">{m.content}</div>
-                            )}
-                        </div>
-                        {m.role === 'user' && (
-                            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                                <User2 className="w-5 h-5 text-primary-foreground" />
-                            </div>
-                        )}
-                    </div>
-                ))}
-                <AnimatePresence mode="wait">
+            <motion.div
+                className="max-w-4xl mx-auto space-y-6"
+                layout
+            >
+                <AnimatePresence mode="popLayout">
+                    {messages.filter(m => m.role === 'user' || m.content).map((message) => (
+                        <MessageBubble
+                            key={message.id}
+                            message={message}
+                            model={model}
+                            availableIcons={availableIcons}
+                        />
+                    ))}
+
                     {isTyping && (
-                        <motion.div 
-                            key="loading"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="flex justify-start items-start gap-2"
-                        >
-                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                                {(() => {
-                                    const IconComponent = model.icon ? availableIcons[model.icon] || Bot : Bot;
-                                    return <IconComponent className="w-5 h-5" />;
-                                })()}
-                            </div>
-                            <motion.div 
-                                className="rounded-2xl p-4 max-w-[70%] bg-gradient-to-r from-muted via-muted/90 to-muted/80 rounded-tl-none shadow-sm"
-                                initial={{ scale: 0.95 }}
-                                animate={{ scale: 1 }}
-                                transition={{ duration: 0.2 }}
-                            >
-                                <div className="flex items-center gap-1.5">
-                                    <motion.div
-                                        className="w-2 h-2 rounded-full bg-primary/80"
-                                        animate={{
-                                            scale: [1, 1.2, 1],
-                                            opacity: [0.3, 1, 0.3]
-                                        }}
-                                        transition={{
-                                            duration: 1,
-                                            repeat: Infinity,
-                                            ease: "easeInOut"
-                                        }}
-                                    />
-                                    <motion.div
-                                        className="w-2 h-2 rounded-full bg-primary/80"
-                                        animate={{
-                                            scale: [1, 1.2, 1],
-                                            opacity: [0.3, 1, 0.3]
-                                        }}
-                                        transition={{
-                                            duration: 1,
-                                            delay: 0.2,
-                                            repeat: Infinity,
-                                            ease: "easeInOut"
-                                        }}
-                                    />
-                                    <motion.div
-                                        className="w-2 h-2 rounded-full bg-primary/80"
-                                        animate={{
-                                            scale: [1, 1.2, 1],
-                                            opacity: [0.3, 1, 0.3]
-                                        }}
-                                        transition={{
-                                            duration: 1,
-                                            delay: 0.4,
-                                            repeat: Infinity,
-                                            ease: "easeInOut"
-                                        }}
-                                    />
-                                </div>
-                            </motion.div>
-                        </motion.div>
+                        <TypingIndicator
+                            key="typing"
+                        />
                     )}
                 </AnimatePresence>
+
                 <div ref={messagesEndRef} />
-            </div>
+            </motion.div>
         </div>
     );
-} 
+}

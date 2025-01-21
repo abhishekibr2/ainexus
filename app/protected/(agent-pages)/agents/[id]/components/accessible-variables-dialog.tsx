@@ -48,14 +48,14 @@ export function AccessibleVariablesDialog({
                     Variables
                 </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className="max-h-[90vh]">
                 <AlertDialogHeader>
                     <AlertDialogTitle>Accessible Variables</AlertDialogTitle>
                     <AlertDialogDescription>
                         Available variables for this agent
                     </AlertDialogDescription>
                 </AlertDialogHeader>
-                <div className="space-y-4">
+                <div className="space-y-4 pr-2 overflow-y-auto">
                     <div className="rounded-lg border p-4 space-y-4">
                         <div className="space-y-2">
                             <h4 className="font-medium">User Variables</h4>
@@ -82,7 +82,11 @@ export function AccessibleVariablesDialog({
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">model.override_config</code>
-                                    <span className="text-muted-foreground">{model.override_config ? JSON.stringify(model.override_config, null, 0) : ''}</span>
+                                    <span className="text-muted-foreground">
+                                        {model.override_config
+                                            ? JSON.stringify(model.override_config, null, 1)
+                                            : ''}
+                                    </span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">instruction</code>

@@ -15,6 +15,7 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
+    DialogTrigger,
 } from "@/components/ui/dialog";
 import { FileText, Code2, Settings, Wand2, Loader2, X } from "lucide-react";
 import Editor from "@monaco-editor/react";
@@ -22,6 +23,9 @@ import { getApplications, getModels, updateModel } from "@/utils/supabase/action
 import { Model, availableIcons, sampleDescriptions, RestrictedPermissionOption } from "./types";
 import { UserSearch } from "./user-search";
 import { WorkspaceSearch } from "./workspace-search";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { OverrideConfigDialog } from "./OverrideConfigDialog";
 
 interface EditModelDialogProps {
     model: Model | null;
@@ -52,6 +56,19 @@ export function EditModelDialog({
     const [isLoadingApps, setIsLoadingApps] = useState(true);
     const { toast } = useToast();
 
+    // Format JSON string for display
+    const formatJsonString = (jsonString: string | null): string => {
+        if (!jsonString) return '';
+        try {
+            // If it's already a string representation of JSON, parse it first
+            const parsed = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+            return JSON.stringify(parsed, null, 2);
+        } catch (e) {
+            // If parsing fails, it might be already a JSON string
+            return jsonString;
+        }
+    };
+
     useEffect(() => {
         const loadApplications = async () => {
             if (!showDialog) return;
@@ -78,6 +95,7 @@ export function EditModelDialog({
         if (model) {
             setModelData({
                 ...model,
+                override_config: formatJsonString(model.override_config || null),
                 permission: {
                     type: model.permission?.type || 'global',
                     restricted_to: model.permission?.restricted_to || [],
@@ -102,9 +120,26 @@ export function EditModelDialog({
             modelData.app_id = null;
         }
 
+        // Validate and parse JSON before submitting
+        let parsedConfig: any = null;
+        try {
+            if (modelData.override_config) {
+                // Parse the string to get the actual JSON object
+                parsedConfig = JSON.parse(modelData.override_config);
+            }
+        } catch (e) {
+            toast({
+                title: "Error",
+                description: "Invalid JSON in Override Config",
+                variant: "destructive",
+            });
+            return;
+        }
+
         // Ensure permission field is properly structured
         const modelToSubmit = {
             ...modelData,
+            override_config: parsedConfig, // This will be the actual JSON object, not a string
             permission: {
                 type: modelData.permission?.type || 'global',
                 restricted_to: modelData.permission?.type === 'restricted' ? (modelData.permission?.restricted_to || []) : [],
@@ -534,17 +569,41 @@ export function EditModelDialog({
                                     </div>
 
                                     <div>
-                                        <Label htmlFor="code" className="text-sm font-medium">
-                                            Override Config JSON
-                                            <span className="text-destructive ml-1">*</span>
+                                        <Label htmlFor="code" className="text-sm font-medium flex justify-between">
+                                            <div>
+                                                Override Config JSON
+                                                <span className="text-destructive ml-1">*</span>
+                                            </div>
+                                            <OverrideConfigDialog />
                                         </Label>
-                                        <div className="mt-1.5">
-                                            <Textarea
-                                                id="code"
-                                                placeholder="Enter your JSON configuration"
-                                                value={modelData.override_config}
-                                                onChange={(e) => setModelData({ ...modelData, override_config: e.target.value })}
-                                                className="h-[400px] font-mono text-sm"
+                                        <div className="mt-1.5 border rounded-md overflow-hidden">
+                                            <Editor
+                                                height="400px"
+                                                defaultLanguage="json"
+                                                value={modelData.override_config || ''}
+                                                onChange={(value) => {
+                                                    try {
+                                                        // Validate JSON as user types
+                                                        if (value) {
+                                                            JSON.parse(value);
+                                                        }
+                                                        setModelData({ ...modelData, override_config: value || '' });
+                                                    } catch (e) {
+                                                        // Allow invalid JSON while typing, but it will be caught on submit
+                                                        setModelData({ ...modelData, override_config: value || '' });
+                                                    }
+                                                }}
+                                                options={{
+                                                    minimap: { enabled: false },
+                                                    fontSize: 12,
+                                                    lineNumbers: 'on',
+                                                    scrollBeyondLastLine: false,
+                                                    automaticLayout: true,
+                                                    formatOnPaste: true,
+                                                    formatOnType: true,
+                                                    bracketPairColorization: { enabled: true },
+                                                    tabSize: 2
+                                                }}
                                             />
                                         </div>
                                     </div>

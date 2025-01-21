@@ -84,13 +84,15 @@ export function ChatContainer({
             const client = new FlowiseClient({
                 baseUrl: 'https://flowise.ibrcloud.com',
             });
-
+            const overrideConfig = typeof model.override_config === 'string' 
+                ? JSON.parse(model.override_config || '{}')
+                : model.override_config || {};
             setIsStreaming(true);
             const prediction = await client.createPrediction({
                 chatflowId: model.chatflow_id,
                 question: message,
                 streaming: true,
-                overrideConfig: model.override_config ? JSON.parse(model.override_config) : undefined
+                overrideConfig: overrideConfig
             });
 
             let content = '';

@@ -2,13 +2,24 @@
 
 import { createClient } from '../../client'
 
+function getFormattedTimezone() {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const date = new Date();
+    const offset = date.getTimezoneOffset();
+    const hours = Math.abs(Math.floor(offset / 60));
+    const minutes = Math.abs(offset % 60);
+    const sign = offset < 0 ? '+' : '-';
+    const gmtOffset = `GMT${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    return `${timezone} ${gmtOffset}`;
+}
+
 export async function checkAndUpdateTimezone(id: string) {
     try {
         const supabase = createClient()
 
         // Get user profile
         const { data: profile, error: profileError } = await supabase
-            .from('profiles')
+            .from('user')
             .select('timezone')
             .eq('id', id)
             .single()
@@ -18,8 +29,8 @@ export async function checkAndUpdateTimezone(id: string) {
         // If timezone is null, update it with the system timezone
         if (!profile.timezone) {
             const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+                .from('user')
+                .update({ timezone: getFormattedTimezone() })
                 .eq('id', id)
 
             if (updateError) throw updateError
