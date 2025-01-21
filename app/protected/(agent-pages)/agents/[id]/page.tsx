@@ -83,8 +83,12 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
         let isMounted = true;
 
         const fetchModelAndChat = async () => {
-            setIsLoading(true);
             if (!isMounted) return;
+            
+            // Only set loading state if we don't have any data yet
+            if (!modelData.model) {
+                setIsLoading(true);
+            }
 
             try {
                 const supabase = createClient();

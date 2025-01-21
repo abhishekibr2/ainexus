@@ -22,7 +22,7 @@ export interface NewModel {
     icon: string;
     is_auth: boolean;
     chatflow_id: string;
-    override_config?: string;
+    override_config?: string | null;
     app_id: number | null;
     permission: Permission;
 }

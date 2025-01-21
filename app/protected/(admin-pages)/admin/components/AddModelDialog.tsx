@@ -22,6 +22,9 @@ import { getApplications, getModels, createModel } from "@/utils/supabase/action
 import { NewModel, availableIcons, sampleDescriptions, RestrictedPermissionOption } from "./types";
 import { UserSearch } from "./user-search";
 import { WorkspaceSearch } from "./workspace-search";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { OverrideConfigDialog } from "./OverrideConfigDialog";
 
 interface AddModelDialogProps {
     userId: string | null;
@@ -104,9 +107,30 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
             newModel.app_id = null;
         }
 
-        // Ensure permission field is properly structured
+        // Validate and parse JSON before submitting
+        let parsedConfig: any = null;
+        try {
+            if (newModel.override_config) {
+                // Parse the string to get the actual JSON object
+                parsedConfig = JSON.parse(newModel.override_config);
+            }
+        } catch (e) {
+            toast({
+                title: "Error",
+                description: "Invalid JSON in Override Config",
+                variant: "destructive",
+            });
+            return;
+        }
+
         const modelToSubmit = {
-            ...newModel,
+            name: newModel.name,
+            description: newModel.description,
+            icon: newModel.icon,
+            is_auth: newModel.is_auth,
+            override_config: parsedConfig, // This will be the actual JSON object, not a string
+            chatflow_id: newModel.chatflow_id,
+            app_id: newModel.app_id,
             permission: {
                 type: newModel.permission?.type || 'global',
                 restricted_to: newModel.permission?.type === 'restricted' ? (newModel.permission?.restricted_to || []) : [],
@@ -242,9 +266,8 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
                                                     return (
                                                         <button
                                                             key={icon.id}
-                                                            className={`aspect-square p-2 border rounded-lg hover:border-primary transition-colors ${
-                                                                isSelected ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
-                                                            }`}
+                                                            className={`aspect-square p-2 border rounded-lg hover:border-primary transition-colors ${isSelected ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                                                                }`}
                                                             onClick={() => handleIconSelect(icon.id)}
                                                             type="button"
                                                         >
@@ -538,17 +561,41 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
                                     </div>
 
                                     <div>
-                                        <Label htmlFor="code" className="text-sm font-medium">
-                                            Override Config JSON
-                                            <span className="text-destructive ml-1">*</span>
+                                        <Label htmlFor="code" className="text-sm font-medium flex justify-between">
+                                            <div>
+                                                Override Config JSON
+                                                <span className="text-destructive ml-1">*</span>
+                                            </div>
+                                            <OverrideConfigDialog />
                                         </Label>
-                                        <div className="mt-1.5">
-                                            <Textarea
-                                                id="code"
-                                                placeholder="Enter your JSON configuration"
-                                                value={newModel.override_config}
-                                                onChange={(e) => setNewModel({ ...newModel, override_config: e.target.value })}
-                                                className="h-[400px] font-mono text-sm"
+                                        <div className="mt-1.5 border rounded-md overflow-hidden">
+                                            <Editor
+                                                height="400px"
+                                                defaultLanguage="json"
+                                                value={newModel.override_config || ''}
+                                                onChange={(value) => {
+                                                    try {
+                                                        // Validate JSON as user types
+                                                        if (value) {
+                                                            JSON.parse(value);
+                                                        }
+                                                        setNewModel({ ...newModel, override_config: value || '' });
+                                                    } catch (e) {
+                                                        // Allow invalid JSON while typing, but it will be caught on submit
+                                                        setNewModel({ ...newModel, override_config: value || '' });
+                                                    }
+                                                }}
+                                                options={{
+                                                    minimap: { enabled: false },
+                                                    fontSize: 12,
+                                                    lineNumbers: 'on',
+                                                    scrollBeyondLastLine: false,
+                                                    automaticLayout: true,
+                                                    formatOnPaste: true,
+                                                    formatOnType: true,
+                                                    bracketPairColorization: { enabled: true },
+                                                    tabSize: 2
+                                                }}
                                             />
                                         </div>
                                     </div>

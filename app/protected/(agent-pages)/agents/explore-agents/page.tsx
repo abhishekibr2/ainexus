@@ -887,33 +887,33 @@ const AccessibleVariablesDialog = ({
                     Variables
                 </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
                 <AlertDialogHeader>
                     <AlertDialogTitle>Accessible Variables</AlertDialogTitle>
                     <AlertDialogDescription>
                         Available variables for this agent
                     </AlertDialogDescription>
                 </AlertDialogHeader>
-                <div className="space-y-4">
+                <div className="space-y-4 pr-2">
                     <div className="rounded-lg border p-4 space-y-4">
                         <div className="space-y-2">
                             <h4 className="font-medium">User Variables</h4>
                             <div className="gap-2 text-sm">
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">user.id</code>
-                                    <span className="text-muted-foreground">{user?.id}</span>
+                                    <span className="text-muted-foreground break-all">{user?.id}</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">user.email</code>
-                                    <span className="text-muted-foreground">{user?.email}</span>
+                                    <span className="text-muted-foreground break-all">{user?.email}</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">timezone</code>
-                                    <span className="text-muted-foreground">{timezone}</span>
+                                    <span className="text-muted-foreground break-all">{timezone}</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <code className="bg-muted px-1 py-0.5 rounded">name</code>
-                                    <span className="text-muted-foreground">{user?.user_metadata?.name}</span>
+                                    <span className="text-muted-foreground break-all">{user?.user_metadata?.name}</span>
                                 </div>
                             </div>
                         </div>
@@ -930,8 +930,8 @@ const AccessibleVariablesDialog = ({
                                         <div key={index} className="flex items-center justify-between space-x-2 bg-muted/30 p-2 rounded-md">
                                             <code className="bg-muted px-1 py-0.5 rounded">vars.{field}</code>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-muted-foreground">{connectionKeys[field]}</span>
-                                                <Lock className="h-3 w-3 text-muted-foreground" />
+                                                <span className="text-muted-foreground break-all">{connectionKeys[field]}</span>
+                                                <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                                             </div>
                                         </div>
                                     ))}
