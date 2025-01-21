@@ -138,7 +138,7 @@ export async function getModels(userId: string) {
                 fields
             ),
             created_by:user (
-                email
+                name
             )
         `)
         .order('created_at', { ascending: false })

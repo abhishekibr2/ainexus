@@ -23,7 +23,7 @@ export interface Model {
     is_auth: boolean;
     app_id: number;
     created_by: {
-        email: string;
+        name: string;
     };
     created_at: string;
     fields?: string[];

@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { TrashIcon } from "lucide-react";
 import { columns } from "./components/columns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function ConnectionPage() {
     const [connections, setConnections] = useState<Connection[]>([]);
@@ -36,6 +37,7 @@ export default function ConnectionPage() {
     const [error, setError] = useState<Error | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [connectionToDelete, setConnectionToDelete] = useState<Connection | null>(null);
+    const [selectedConnection, setSelectedConnection] = useState<Connection | null>(null);
 
     const fetchConnections = async () => {
         try {
@@ -79,7 +81,7 @@ export default function ConnectionPage() {
                 throw new Error("User not authenticated");
             }
 
-            const { error } = await createUserConnection(
+            const { data: createdConnection, error } = await createUserConnection(
                 userId,
                 newConnection.app_id,
                 newConnection.connection_name,
@@ -88,7 +90,20 @@ export default function ConnectionPage() {
 
             if (error) throw error;
 
-            await fetchConnections();
+            // Fetch updated connections
+            const { data: updatedConnections } = await getUserConnections(userId);
+            if (updatedConnections) {
+                setConnections(updatedConnections);
+                // Find and select the newly created connection
+                const newlyCreatedConnection = updatedConnections.find(
+                    conn => conn.connection_name === newConnection.connection_name && 
+                           conn.app_id === newConnection.app_id
+                );
+                if (newlyCreatedConnection) {
+                    setSelectedConnection(newlyCreatedConnection);
+                }
+            }
+
             toast({
                 title: 'Connection added successfully',
                 description: 'Your new connection has been created.',
@@ -210,10 +225,30 @@ export default function ConnectionPage() {
                     <h1 className="text-2xl font-bold">Your Connections</h1>
                     <p className="text-sm text-muted-foreground">Manage your connections with AI agents here.</p>
                 </div>
-                <AddConnectionDialog
-                    applications={applications}
-                    onAdd={handleAddConnection}
-                />
+                <div className="flex items-center gap-4">
+                    <Select
+                        value={selectedConnection?.id?.toString() || ""}
+                        onValueChange={(value) => {
+                            const connection = connections.find(c => c.id.toString() === value);
+                            setSelectedConnection(connection || null);
+                        }}
+                    >
+                        <SelectTrigger className="w-[250px]">
+                            <SelectValue placeholder="Select a connection" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {connections.map((connection) => (
+                                <SelectItem key={connection.id} value={connection.id.toString()}>
+                                    {connection.connection_name} ({connection.application?.name})
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <AddConnectionDialog
+                        applications={applications}
+                        onAdd={handleAddConnection}
+                    />
+                </div>
             </div>
 
             {!connections.length ? (

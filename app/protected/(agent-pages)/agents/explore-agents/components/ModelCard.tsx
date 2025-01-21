@@ -239,13 +239,10 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model }) => {
                             </div>
                             <div>
                                 <h3 className="text-xl font-semibold">{model.name}</h3>
-                                <span className="text-sm text-muted-foreground font-normal">Created by {model.created_by.email}</span>
+                                <span className="text-sm text-muted-foreground font-normal">Created by {model.created_by.name}</span>
                             </div>
                         </div>
                     </DialogTitle>
-                    <DialogDescription>
-                        Configure your model settings below
-                    </DialogDescription>
                 </DialogHeader>
                 <div className="py-6">
                     <ModelConfigForm

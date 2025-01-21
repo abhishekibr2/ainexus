@@ -6,6 +6,7 @@ import { ChatHeader } from "./chat-header";
 import { MessageList } from "./message-list";
 import { ChatInput } from "./chat-input";
 import { ChatHistory } from "./chat-history";
+import { StarterPrompts } from "./starter-prompts";
 import { ChatMessage } from "@/utils/supabase/actions/user/user_chat";
 import { updateUserAssignedModel } from "@/utils/supabase/actions/user/assignedAgents";
 import { useRouter } from "next/navigation";
@@ -63,6 +64,7 @@ export function ChatContainer({
     const [refreshHistory, setRefreshHistory] = useState(0);
     const { toast } = useToast();
     const router = useRouter();
+    const [showStarterPrompts, setShowStarterPrompts] = useState(true);
 
     const handleChatSelect = async (chatId: number) => {
         try {
@@ -86,6 +88,7 @@ export function ChatContainer({
     const handleSubmit = async (message: string) => {
         if (!model || isTyping) return;
 
+        setShowStarterPrompts(false); // Hide starter prompts after first message
         setIsTyping(true);
         setIsHistoryExpanded(false);
         const timestamp = Date.now();
@@ -213,13 +216,6 @@ export function ChatContainer({
                 onDelete={onDelete}
                 onSave={async (settings) => {
                     try {
-                        console.log(userAssignedModelId)
-                        console.log({
-                            name: settings.name,
-                            description: settings.description,
-                            instruction: settings.instructions,
-                            user_connection_id: settings.user_connection_id
-                        })
                         const { error } = await updateUserAssignedModel(userAssignedModelId, {
                             name: settings.name,
                             description: settings.description,
@@ -246,7 +242,7 @@ export function ChatContainer({
                 showFullHeader={messages.length === 0}
             />
 
-            {user && (
+            {/* {user && (
                 <ChatHistory
                     userId={user.id}
                     modelId={userAssignedModelId}
@@ -256,7 +252,7 @@ export function ChatContainer({
                     onChatSelect={handleChatSelect}
                     refreshTrigger={refreshHistory}
                 />
-            )}
+            )} */}
 
             <main className="flex-1 overflow-hidden relative">
                 {messages.length === 0 ? (
@@ -272,6 +268,14 @@ export function ChatContainer({
                     />
                 )}
             </main>
+
+            {showStarterPrompts && messages.length === 0 && (
+                <StarterPrompts
+                    onPromptSelect={(prompt) => handleSubmit(prompt)}
+                    isTyping={isTyping}
+                    userAssignedModelId={userAssignedModelId}
+                />
+            )}
 
             <ChatInput
                 isTyping={isTyping}
