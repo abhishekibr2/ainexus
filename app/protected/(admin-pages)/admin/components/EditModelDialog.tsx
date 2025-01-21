@@ -572,7 +572,6 @@ export function EditModelDialog({
                                         <Label htmlFor="code" className="text-sm font-medium flex justify-between">
                                             <div>
                                                 Override Config JSON
-                                                <span className="text-destructive ml-1">*</span>
                                             </div>
                                             <OverrideConfigDialog />
                                         </Label>
