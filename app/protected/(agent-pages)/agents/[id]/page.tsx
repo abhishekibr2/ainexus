@@ -82,7 +82,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
     useEffect(() => {
         let isMounted = true;
 
-        const fetchModelAndChat = async () => {
+        const fetchModelData = async () => {
             if (!isMounted) return;
             
             // Only set loading state if we don't have any data yet
@@ -204,22 +204,6 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     }
                 }
 
-                let messages: Message[] = [];
-                let currentChatId: number | null = null;
-
-                if (chatId) {
-                    const chatData = await getUserChatById(parseInt(chatId));
-                    if (chatData) {
-                        messages = chatData.chat || [];
-                        currentChatId = chatData.id;
-                    }
-                }
-
-                if (!isMounted) {
-                    setIsLoading(false);
-                    return;
-                }
-
                 const updatedModel = {
                     ...foundModel,
                     name: assignedModel.name,
@@ -228,7 +212,8 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                 };
 
                 if (isMounted) {
-                    setModelData({
+                    setModelData(prev => ({
+                        ...prev,
                         model: updatedModel,
                         user,
                         timezone: timezone ?? null,
@@ -237,9 +222,9 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                         isFavorite: isFav,
                         isAdmin: isSuperAdmin(user.email),
                         connectionKeys,
-                        messages,
-                        currentChatId
-                    });
+                        messages: [],
+                        currentChatId: null
+                    }));
                     setIsLoading(false);
                 }
 
@@ -260,12 +245,56 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
             }
         };
 
-        fetchModelAndChat();
+        fetchModelData();
 
         return () => {
             isMounted = false;
         };
-    }, [id, chatId, toast]);
+    }, [id, toast]);
+
+    // Separate effect for handling chat messages
+    useEffect(() => {
+        let isMounted = true;
+
+        const fetchChatData = async () => {
+            if (!chatId || !modelData.hasAccess) {
+                if (isMounted) {
+                    setModelData(prev => ({
+                        ...prev,
+                        messages: [],
+                        currentChatId: null
+                    }));
+                }
+                return;
+            }
+
+            try {
+                const chatData = await getUserChatById(parseInt(chatId));
+                if (chatData && isMounted) {
+                    setModelData(prev => ({
+                        ...prev,
+                        messages: chatData.chat || [],
+                        currentChatId: chatData.id
+                    }));
+                }
+            } catch (error) {
+                console.error('Error fetching chat data:', error);
+                if (isMounted) {
+                    toast({
+                        title: "Error",
+                        description: "Failed to load chat messages. Please try again.",
+                        variant: "destructive",
+                    });
+                }
+            }
+        };
+
+        fetchChatData();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [chatId, modelData.hasAccess]);
 
     const handleDeleteModel = async () => {
         try {

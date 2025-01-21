@@ -1,7 +1,6 @@
 'use client';
 
 import { Bot, User2, MoreVertical } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown, { Components } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
@@ -47,17 +46,19 @@ const MemoizedMarkdownComponents = {
                 style={oneDark}
                 language={match[1]}
                 PreTag="div"
-                className="rounded-md my-4"
+                className="rounded-md my-4 max-w-full overflow-x-auto whitespace-pre-wrap"
             >
                 {String(children).replace(/\n$/, '')}
             </SyntaxHighlighter>
         ) : (
-            <code {...props} className="bg-muted-foreground/20 rounded px-1">
+            <code {...props} className="bg-muted-foreground/20 rounded px-1 break-all whitespace-pre-wrap">
                 {children}
             </code>
         );
     }),
-    p: memo(({ children }: { children: React.ReactNode }) => <p className="mb-4 last:mb-0">{children}</p>),
+    p: memo(({ children }: { children: React.ReactNode }) => (
+        <p className="mb-4 last:mb-0 whitespace-pre-wrap break-words leading-normal" style={{ minHeight: '1.5em', lineHeight: '1.5' }}>{children}</p>
+    )),
     ul: memo(({ children }: { children: React.ReactNode }) => <ul className="list-disc pl-4 mb-4 last:mb-0 space-y-2">{children}</ul>),
     ol: memo(({ children }: { children: React.ReactNode }) => <ol className="list-decimal pl-4 mb-4 last:mb-0 space-y-2">{children}</ol>),
     li: memo(({ children }: { children: React.ReactNode }) => <li>{children}</li>),
@@ -88,10 +89,7 @@ const MessageBubble = memo(({ message, model, availableIcons, userAssignedModelI
 
     const handleSaveToStarterPrompts = async () => {
         try {
-            // Get current starter prompts
             const currentPrompts = await getStarterPrompts(userAssignedModelId);
-
-            // Check if prompt already exists
             if (currentPrompts.includes(message.content)) {
                 toast({
                     title: "Already exists",
@@ -100,8 +98,6 @@ const MessageBubble = memo(({ message, model, availableIcons, userAssignedModelI
                 });
                 return;
             }
-
-            // Add the new prompt
             await addStarterPrompt(userAssignedModelId, message.content);
             toast({
                 title: "Success",
@@ -118,17 +114,10 @@ const MessageBubble = memo(({ message, model, availableIcons, userAssignedModelI
         }
     };
 
-    // Don't render empty assistant messages
     if (!isUser && !message.content) return null;
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            layout
-            className={`flex ${isUser ? 'justify-end' : 'justify-start'} items-start gap-3`}
-        >
+        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} items-start gap-3 mb-6`}>
             {!isUser && (
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
                     <IconComponent className="w-5 h-5" />
@@ -138,19 +127,21 @@ const MessageBubble = memo(({ message, model, availableIcons, userAssignedModelI
             <div className={`rounded-2xl p-4 max-w-[80%] ${isUser
                 ? 'bg-primary text-primary-foreground rounded-tr-none ml-8'
                 : 'bg-muted rounded-tl-none mr-8'
-                }`}>
+                } break-words overflow-hidden w-fit`}>
                 {isUser ? (
                     <div className="flex items-start gap-2">
-                        <div className="text-sm flex-grow">{message.content}</div>
+                        <div className="text-sm flex-grow whitespace-pre-wrap">{message.content}</div>
                     </div>
                 ) : (
-                    <ReactMarkdown
-                        className="text-sm prose dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0"
-                        remarkPlugins={[remarkGfm, remarkMath]}
-                        components={MemoizedMarkdownComponents as Components}
-                    >
-                        {message.content}
-                    </ReactMarkdown>
+                    <div className="min-w-[16rem] flex-1">
+                        <ReactMarkdown
+                            className="text-sm prose dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 overflow-x-auto"
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            components={MemoizedMarkdownComponents as Components}
+                        >
+                            {message.content}
+                        </ReactMarkdown>
+                    </div>
                 )}
             </div>
 
@@ -175,50 +166,28 @@ const MessageBubble = memo(({ message, model, availableIcons, userAssignedModelI
                     </DropdownMenu>
                 </div>
             )}
-        </motion.div>
+        </div>
     );
 });
 
 MessageBubble.displayName = 'MessageBubble';
 
-
 const TypingIndicator = memo(() => (
-    <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
-        layout
-        className="flex items-start gap-3"
-    >
+    <div className="flex items-start gap-3 mb-6">
         <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
             <Bot className="w-5 h-5" />
         </div>
         <div className="bg-muted rounded-2xl rounded-tl-none p-4 flex items-center min-w-[60px]">
             <div className="flex items-center gap-2">
-                {[0, 1, 2].map((i) => (
-                    <motion.div
-                        key={i}
-                        className="w-2.5 h-2.5 rounded-full bg-foreground/25"
-                        animate={{
-                            scale: [0.8, 1.2, 0.8],
-                            opacity: [0.3, 1, 0.3]
-                        }}
-                        transition={{
-                            duration: 0.8,
-                            repeat: Infinity,
-                            delay: i * 0.15,
-                            ease: "easeInOut"
-                        }}
-                    />
-                ))}
+                <span className="w-2.5 h-2.5 rounded-full bg-foreground/25 animate-pulse" />
+                <span className="w-2.5 h-2.5 rounded-full bg-foreground/25 animate-pulse delay-150" />
+                <span className="w-2.5 h-2.5 rounded-full bg-foreground/25 animate-pulse delay-300" />
             </div>
         </div>
-    </motion.div>
+    </div>
 ));
 
 TypingIndicator.displayName = 'TypingIndicator';
-
 
 export function MessageList({ messages, model, isTyping, availableIcons, userAssignedModelId }: MessageListProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -235,30 +204,21 @@ export function MessageList({ messages, model, isTyping, availableIcons, userAss
 
     return (
         <div className="h-full overflow-y-auto px-4 py-6">
-            <motion.div
-                className="max-w-4xl mx-auto space-y-6"
-                layout
-            >
-                <AnimatePresence mode="popLayout">
-                    {messages.filter(m => m.role === 'user' || m.content).map((message) => (
-                        <MessageBubble
-                            key={message.id}
-                            message={message}
-                            model={model}
-                            availableIcons={availableIcons}
-                            userAssignedModelId={userAssignedModelId}
-                        />
-                    ))}
+            <div className="max-w-4xl mx-auto">
+                {messages.filter(m => m.role === 'user' || m.content).map((message) => (
+                    <MessageBubble
+                        key={message.id}
+                        message={message}
+                        model={model}
+                        availableIcons={availableIcons}
+                        userAssignedModelId={userAssignedModelId}
+                    />
+                ))}
 
-                    {isTyping && (
-                        <TypingIndicator
-                            key="typing"
-                        />
-                    )}
-                </AnimatePresence>
+                {isTyping && <TypingIndicator />}
 
                 <div ref={messagesEndRef} />
-            </motion.div>
+            </div>
         </div>
     );
 }

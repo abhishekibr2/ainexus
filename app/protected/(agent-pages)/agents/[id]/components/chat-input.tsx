@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Mic, Paperclip, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface ChatInputProps {
@@ -24,7 +24,6 @@ export function ChatInput({ isTyping, onSubmit, modelName, messages = [], flowis
 
         try {
             setInput(''); // Clear input immediately after submission
-            console.log('Submitting message:', trimmedInput);
             await onSubmit(trimmedInput);
         } catch (error) {
             console.error('Error submitting message:', error);
@@ -58,24 +57,6 @@ export function ChatInput({ isTyping, onSubmit, modelName, messages = [], flowis
                                 disabled={isTyping}
                             />
                             <div className="absolute right-3 bottom-3 flex items-center gap-3">
-                                <motion.button
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    type="button"
-                                    className="p-1.5"
-                                    disabled={isTyping}
-                                >
-                                    <Mic className="w-5 h-5" />
-                                </motion.button>
-                                <motion.button
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    type="button"
-                                    className="p-1.5"
-                                    disabled={isTyping}
-                                >
-                                    <Paperclip className="w-5 h-5" />
-                                </motion.button>
                                 <motion.div
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}

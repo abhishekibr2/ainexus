@@ -69,6 +69,7 @@ export function ModelSettingsDialog({
     const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
     const [connectionFieldValues, setConnectionFieldValues] = useState<Record<string, string>>({});
     const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
@@ -136,7 +137,7 @@ export function ModelSettingsDialog({
         };
 
         fetchStarterPrompts();
-    }, [id]);
+    }, [id, refreshKey]);
 
     const handleConnectionChange = (value: string) => {
         const selectedConn = availableConnections.find(
@@ -201,7 +202,7 @@ export function ModelSettingsDialog({
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => setRefreshKey(prev => prev + 1)}>
                     <Settings className="h-4 w-4 mr-2" />
                     Settings
                 </Button>

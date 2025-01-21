@@ -59,7 +59,7 @@ export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmi
         resolver: zodResolver(modelConfigSchema),
         defaultValues: {
             basic: {
-                override_name: model.name,
+                override_name: `My ${model.name}`,
                 override_description: model.description,
             },
             auth: {
@@ -81,7 +81,7 @@ export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmi
         if (!showOverrides) {
             form.reset({
                 basic: {
-                    override_name: model.name,
+                    override_name: `My ${model.name}`,
                     override_description: model.description,
                 },
                 auth: {
@@ -143,7 +143,7 @@ export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmi
                 throw new Error("User not authenticated");
             }
 
-            const { error } = await createUserConnection(
+            const { data: createdConnection, error } = await createUserConnection(
                 userId,
                 newConnection.app_id,
                 newConnection.connection_name,
@@ -157,6 +157,24 @@ export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmi
             if (connections) {
                 const appConnections = connections.filter(conn => conn.app_id === model.app_id);
                 setAvailableConnections(appConnections);
+
+                // Find and auto-select the newly created connection
+                const newlyCreatedConnection = appConnections.find(
+                    conn => conn.connection_name === newConnection.connection_name
+                );
+                
+                if (newlyCreatedConnection) {
+                    setSelectedConnectionId(newlyCreatedConnection.id);
+                    form.setValue('auth.user_connection_id', newlyCreatedConnection.id);
+                    
+                    // Set the connection field values if available
+                    if (newlyCreatedConnection.parsedConnectionKeys) {
+                        const values = Object.fromEntries(
+                            newlyCreatedConnection.parsedConnectionKeys.map(({ key, value }: { key: string, value: string }) => [key, value])
+                        );
+                        setConnectionFieldValues(values);
+                    }
+                }
             }
 
             toast({
@@ -210,72 +228,23 @@ export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmi
         <div className="space-y-6">
             {/* Model Details Section */}
             <div className="space-y-4">
-                {/* Override Configuration Toggle */}
-                <div className="flex items-center space-x-2 pt-4">
-                    <Checkbox
-                        id="override"
-                        checked={showOverrides}
-                        onCheckedChange={(checked) => setShowOverrides(checked as boolean)}
-                    />
-                    <label
-                        htmlFor="override"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                        Override default configuration ( You can change this setting later )
-                    </label>
-                </div>
-
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-4">
-                        {/* Configuration Override Fields */}
-                        {showOverrides && (
-                            <div className="space-y-4 pt-4">
-                                <FormField
-                                    control={form.control}
-                                    name="basic.override_name"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Custom Name</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder={model.name} {...field} />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="basic.override_description"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Custom Description</FormLabel>
-                                            <FormControl>
-                                                <Textarea
-                                                    placeholder={model.description}
-                                                    className="min-h-[100px]"
-                                                    {...field}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="advanced.override_instructions"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Custom Instructions</FormLabel>
-                                            <FormControl>
-                                                <Textarea
-                                                    placeholder="Enter custom instructions for the agent..."
-                                                    className="min-h-[100px]"
-                                                    {...field}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                        )}
+                        {/* Basic Configuration */}
+                        <div className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="basic.override_name"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Agent Name</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder={`My ${model.name}`} {...field} />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
 
                         {/* Authentication Section */}
                         {model.is_auth && (

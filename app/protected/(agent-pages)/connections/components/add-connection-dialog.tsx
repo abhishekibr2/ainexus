@@ -37,18 +37,37 @@ export function AddConnectionDialog({ onAdd, applications }: AddConnectionDialog
     const [errors, setErrors] = useState<{ [key: string]: boolean }>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const selectedApp = applications.find(app => app.id.toString() === selectedAppId);
+    // Auto-select application if there's only one option
+    useEffect(() => {
+        if (applications.length === 1) {
+            const app = applications[0];
+            setSelectedAppId(app.id.toString());
+            setConnectionName(`${app.name} Connection`);
+        }
+    }, [applications]);
 
     // Reset form when dialog closes
     useEffect(() => {
         if (!isOpen) {
             setConnectionName("");
-            setSelectedAppId("");
+            // Only reset selectedAppId if there are multiple applications
+            if (applications.length > 1) {
+                setSelectedAppId("");
+            }
             setConnectionValues({});
             setShowValues({});
             setErrors({});
         }
-    }, [isOpen]);
+    }, [isOpen, applications.length]);
+
+    const selectedApp = applications.find(app => app.id.toString() === selectedAppId);
+
+    // Set default connection name when app is selected
+    useEffect(() => {
+        if (selectedApp && !connectionName) {
+            setConnectionName(`${selectedApp.name} Connection`);
+        }
+    }, [selectedApp, connectionName]);
 
     const validateForm = () => {
         const newErrors: { [key: string]: boolean } = {};
@@ -149,12 +168,20 @@ export function AddConnectionDialog({ onAdd, applications }: AddConnectionDialog
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                         <Label htmlFor="app" className="required">Application</Label>
-                        <Select value={selectedAppId} onValueChange={(value) => {
-                            setSelectedAppId(value);
-                            setConnectionValues({});
-                            setShowValues({});
-                            setErrors({});
-                        }}>
+                        <Select 
+                            value={selectedAppId} 
+                            onValueChange={(value) => {
+                                setSelectedAppId(value);
+                                const app = applications.find(app => app.id.toString() === value);
+                                if (app) {
+                                    setConnectionName(`${app.name} Connection`);
+                                }
+                                setConnectionValues({});
+                                setShowValues({});
+                                setErrors({});
+                            }}
+                            disabled={applications.length === 1}
+                        >
                             <SelectTrigger>
                                 <SelectValue placeholder="Select an application" />
                             </SelectTrigger>
@@ -176,7 +203,7 @@ export function AddConnectionDialog({ onAdd, applications }: AddConnectionDialog
                                 setConnectionName(e.target.value);
                                 setErrors(prev => ({ ...prev, connectionName: false }));
                             }}
-                            placeholder="Enter a name for this connection"
+                            placeholder={selectedApp ? `${selectedApp.name} Connection` : "Enter a name for this connection"}
                             className={errors.connectionName ? "border-red-500" : ""}
                         />
                     </div>
