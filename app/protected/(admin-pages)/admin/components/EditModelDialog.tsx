@@ -8,14 +8,11 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog";
 import { FileText, Code2, Settings, Wand2, Loader2, X } from "lucide-react";
 import Editor from "@monaco-editor/react";
@@ -23,8 +20,6 @@ import { getApplications, getModels, updateModel } from "@/utils/supabase/action
 import { Model, availableIcons, sampleDescriptions, RestrictedPermissionOption } from "./types";
 import { UserSearch } from "./user-search";
 import { WorkspaceSearch } from "./workspace-search";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { OverrideConfigDialog } from "./OverrideConfigDialog";
 
 interface EditModelDialogProps {
@@ -531,10 +526,6 @@ export function EditModelDialog({
                                             <code className="px-1.5 py-0.5 rounded text-xs bg-muted">name</code>
                                             <span className="text-xs text-muted-foreground">User's name</span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <code className="px-1.5 py-0.5 rounded text-xs bg-muted">instruction</code>
-                                            <span className="text-xs text-muted-foreground">Agent's instruction</span>
-                                        </div>
                                     </div>
 
                                     {modelData.is_auth && appOptions.find(app => app.id === modelData.app_id)?.fields && (
@@ -547,6 +538,14 @@ export function EditModelDialog({
                                                         <span className="text-xs text-muted-foreground">Connection {field}</span>
                                                     </div>
                                                 ))}
+                                                <div className="flex items-center gap-2">
+                                                    <code className="px-1.5 py-0.5 rounded text-xs bg-muted">instruction</code>
+                                                    <span className="text-xs text-muted-foreground">Agent's instruction</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <code className="px-1.5 py-0.5 rounded text-xs bg-muted">sessionId</code>
+                                                    <span className="text-xs text-muted-foreground">Session ID</span>
+                                                </div>
                                             </div>
                                         </div>
                                     )}

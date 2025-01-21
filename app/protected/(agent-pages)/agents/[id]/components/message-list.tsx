@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, User2 } from "lucide-react";
+import { Bot, User2, MoreVertical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown, { Components } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -8,6 +8,15 @@ import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { useEffect, useRef, useCallback, memo } from "react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { addStarterPrompt, getStarterPrompts } from "@/utils/supabase/actions/user/starterPrompts";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
     id: string;
@@ -25,6 +34,7 @@ interface MessageListProps {
     model: Model;
     isTyping: boolean;
     availableIcons: { [key: string]: any };
+    userAssignedModelId: string;
 }
 
 // Memoized markdown components to prevent unnecessary re-renders
@@ -66,13 +76,47 @@ const MemoizedMarkdownComponents = {
     ))
 };
 
-const MessageBubble = memo(({ message, model, availableIcons }: {
+const MessageBubble = memo(({ message, model, availableIcons, userAssignedModelId }: {
     message: Message;
     model: Model;
     availableIcons: { [key: string]: any };
+    userAssignedModelId: string;
 }) => {
     const isUser = message.role === 'user';
     const IconComponent = isUser ? User2 : (model.icon ? availableIcons[model.icon] || Bot : Bot);
+    const { toast } = useToast();
+
+    const handleSaveToStarterPrompts = async () => {
+        try {
+            // Get current starter prompts
+            const currentPrompts = await getStarterPrompts(userAssignedModelId);
+
+            // Check if prompt already exists
+            if (currentPrompts.includes(message.content)) {
+                toast({
+                    title: "Already exists",
+                    description: "This prompt is already saved in starter prompts.",
+                    variant: "default"
+                });
+                return;
+            }
+
+            // Add the new prompt
+            await addStarterPrompt(userAssignedModelId, message.content);
+            toast({
+                title: "Success",
+                description: "Prompt saved successfully.",
+                variant: "default"
+            });
+        } catch (error) {
+            console.error('Failed to save starter prompt:', error);
+            toast({
+                title: "Error",
+                description: "Failed to save starter prompt.",
+                variant: "destructive"
+            });
+        }
+    };
 
     // Don't render empty assistant messages
     if (!isUser && !message.content) return null;
@@ -96,7 +140,9 @@ const MessageBubble = memo(({ message, model, availableIcons }: {
                 : 'bg-muted rounded-tl-none mr-8'
                 }`}>
                 {isUser ? (
-                    <div className="text-sm">{message.content}</div>
+                    <div className="flex items-start gap-2">
+                        <div className="text-sm flex-grow">{message.content}</div>
+                    </div>
                 ) : (
                     <ReactMarkdown
                         className="text-sm prose dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0"
@@ -111,6 +157,22 @@ const MessageBubble = memo(({ message, model, availableIcons }: {
             {isUser && (
                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
                     <IconComponent className="w-5 h-5 text-primary-foreground" />
+                </div>
+            )}
+            {isUser && (
+                <div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={handleSaveToStarterPrompts}>
+                                Save to Starter Prompts
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             )}
         </motion.div>
@@ -158,7 +220,7 @@ const TypingIndicator = memo(() => (
 TypingIndicator.displayName = 'TypingIndicator';
 
 
-export function MessageList({ messages, model, isTyping, availableIcons }: MessageListProps) {
+export function MessageList({ messages, model, isTyping, availableIcons, userAssignedModelId }: MessageListProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = useCallback(() => {
@@ -184,6 +246,7 @@ export function MessageList({ messages, model, isTyping, availableIcons }: Messa
                             message={message}
                             model={model}
                             availableIcons={availableIcons}
+                            userAssignedModelId={userAssignedModelId}
                         />
                     ))}
 

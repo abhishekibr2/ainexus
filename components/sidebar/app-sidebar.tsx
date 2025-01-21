@@ -1,28 +1,19 @@
 "use client"
 
 import * as React from "react"
-import { AudioWaveform, BookOpen, Bot, Clock, Command, Frame, GalleryVerticalEnd, Map, PieChart, Settings2, SquareTerminal, StoreIcon, Text, Sparkles, Brain, Code2, History, Star, Boxes, LucideIcon, Home, ChevronRight, Link2 } from 'lucide-react'
+import { Sparkles, Brain, Star, Boxes, LucideIcon, Link2 } from 'lucide-react'
 import { createClient } from "@/utils/supabase/client"
-import Link from "next/link"
-
 import { NavMain } from "@/components/sidebar/nav-main"
 import { NavUser } from "@/components/sidebar/nav-user"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarRail,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
 } from "@/components/ui/sidebar"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { getUserChats } from "@/utils/supabase/actions/user/user_chat"
 import { getUserAssignedModels } from "@/utils/supabase/actions/user/assignedAgents"
 import { useEffect, useState } from "react"
-import { Separator } from "../ui/separator"
+import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "@/components/ui/sidebar"
 
@@ -113,6 +104,8 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
       icon: Star,
       description: `Use ${model.name}`
     }))
+  } else {
+    navItems[0].items = []
   }
 
   // Add assigned models to the Available Models section
@@ -124,6 +117,8 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
       icon: Brain,
       description: `Use ${model.assistant_name}`
     }))
+  } else {
+    navItems[1].items = []
   }
 
   useEffect(() => {
@@ -295,7 +290,7 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
       <SidebarContent className="px-2">
         <NavMain items={navItems} />
         <Separator className="my-4" />
-        <SidebarMenu>
+        {/* <SidebarMenu>
           <Collapsible asChild className="group/collapsible">
             <SidebarMenuItem>
               <CollapsibleTrigger asChild>
@@ -319,7 +314,7 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
               </CollapsibleContent>
             </SidebarMenuItem>
           </Collapsible>
-        </SidebarMenu>
+        </SidebarMenu> */}
       </SidebarContent>
 
       <Separator />

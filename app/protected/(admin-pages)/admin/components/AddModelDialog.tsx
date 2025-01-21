@@ -523,10 +523,6 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
                                             <code className="px-1.5 py-0.5 rounded text-xs bg-muted">name</code>
                                             <span className="text-xs text-muted-foreground">User's name</span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <code className="px-1.5 py-0.5 rounded text-xs bg-muted">instruction</code>
-                                            <span className="text-xs text-muted-foreground">Agent's instruction</span>
-                                        </div>
                                     </div>
 
                                     {newModel.is_auth && appOptions.find(app => app.id === newModel.app_id)?.fields && (
@@ -539,9 +535,17 @@ export function AddModelDialog({ userId, onModelCreated }: AddModelDialogProps) 
                                                         <span className="text-xs text-muted-foreground">Connection {field}</span>
                                                     </div>
                                                 ))}
+                                                <div className="flex items-center gap-2">
+                                                    <code className="px-1.5 py-0.5 rounded text-xs bg-muted">instruction</code>
+                                                    <span className="text-xs text-muted-foreground">Agent's instruction</span>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
+                                    <div className="flex items-center gap-2">
+                                        <code className="px-1.5 py-0.5 rounded text-xs bg-muted">sessionId</code>
+                                        <span className="text-xs text-muted-foreground">Session ID</span>
+                                    </div>
                                 </div>
 
                                 {/* Configuration Fields */}

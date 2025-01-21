@@ -38,7 +38,7 @@ export async function assignModelToUser(
 }
 
 export async function updateUserAssignedModel(
-  id: number,
+  id: string,
   updates: {
     name?: string;
     description?: string;
@@ -67,7 +67,7 @@ export async function updateUserAssignedModel(
   }
 }
 
-export async function deleteUserAssignedModel(modelId: number) {
+export async function deleteUserAssignedModel(modelId: string) {
   try {
     const supabase = await createClient();
 
@@ -89,7 +89,7 @@ export async function deleteUserAssignedModel(modelId: number) {
   }
 }
 
-export async function getUserAssignedModel(id: number) {
+export async function getUserAssignedModel(id: string) {
   const supabase = createClient();
   try {
     const { data, error } = await supabase

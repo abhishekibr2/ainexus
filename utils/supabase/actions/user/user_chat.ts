@@ -8,7 +8,7 @@ export interface ChatMessage {
     content: string;
 }
 
-export async function createUserChat(userId: string, modelId: number, firstMessage: string, assistantMessage: ChatMessage) {
+export async function createUserChat(userId: string, modelId: string, firstMessage: string, assistantMessage: ChatMessage) {
     const supabase = createClient()
     try {
         const chat: ChatMessage[] = [
@@ -32,7 +32,7 @@ export async function createUserChat(userId: string, modelId: number, firstMessa
             .single()
 
         if (error) throw error
-        return data
+        return { data, chatId: data.id }
     } catch (error) {
         console.error('Error in createUserChat:', error)
         throw error
@@ -43,23 +43,10 @@ export async function updateUserChat(chatId: number, newMessages: ChatMessage[])
     const supabase = createClient()
 
     try {
-        // First get the current chat
-        const { data: chatData, error: fetchError } = await supabase
-            .from('user_chat')
-            .select('chat')
-            .eq('id', chatId)
-            .single()
-
-        if (fetchError) throw fetchError
-
-        // Add new messages to chat array
-        const currentChat = chatData?.chat || []
-        const updatedChat = [...currentChat, ...newMessages]
-
-        // Update the chat
+        // Update the chat directly with new messages
         const { error: updateError } = await supabase
             .from('user_chat')
-            .update({ chat: updatedChat })
+            .update({ chat: newMessages })
             .eq('id', chatId)
 
         if (updateError) throw updateError
@@ -107,7 +94,7 @@ export async function getUserChatById(chatId: number) {
     }
 }
 
-export async function getUserChatsByModel(userId: string, modelId: number) {
+export async function getUserChatsByModel(userId: string, modelId: string) {
     const supabase = createClient()
 
     try {

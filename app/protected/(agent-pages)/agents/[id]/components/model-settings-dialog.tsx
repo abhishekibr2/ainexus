@@ -19,10 +19,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Bot, MessageSquare, FileText, Info, Lock, Check, Key, Save, Trash2, Pencil } from "lucide-react";
+import { Settings, Bot, MessageSquare, FileText, Info, Lock, Check, Key, Save, Trash2, Pencil, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { EditConnectionDialog } from "@/app/protected/(agent-pages)/connections/components/edit-connection-dialog";
 import { updateUserConnection } from "@/utils/supabase/actions/user/connections";
+import { getStarterPrompts, removeStarterPrompt } from "@/utils/supabase/actions/user/starterPrompts";
 
 const settingsFormSchema = z.object({
     name: z.string().optional(),
@@ -67,6 +68,7 @@ export function ModelSettingsDialog({
     const [availableConnections, setAvailableConnections] = useState<Connection[]>([]);
     const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
     const [connectionFieldValues, setConnectionFieldValues] = useState<Record<string, string>>({});
+    const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
@@ -96,7 +98,7 @@ export function ModelSettingsDialog({
                     const appConnections = connections.filter(conn => conn.app_id === model.app_id);
                     setAvailableConnections(appConnections);
 
-                    const modelData = await getUserAssignedModel(parseInt(id));
+                    const modelData = await getUserAssignedModel(id);
                     if (modelData?.user_connection_id) {
                         setSelectedConnectionId(modelData.user_connection_id);
                         const currentConnection = appConnections.find(conn => 
@@ -122,6 +124,19 @@ export function ModelSettingsDialog({
             fetchConnections();
         }
     }, [model, id, onConnectionKeysChange]);
+
+    useEffect(() => {
+        const fetchStarterPrompts = async () => {
+            try {
+                const prompts = await getStarterPrompts(id);
+                setStarterPrompts(prompts);
+            } catch (error) {
+                console.error('Error fetching starter prompts:', error);
+            }
+        };
+
+        fetchStarterPrompts();
+    }, [id]);
 
     const handleConnectionChange = (value: string) => {
         const selectedConn = availableConnections.find(
@@ -164,6 +179,25 @@ export function ModelSettingsDialog({
         }
     };
 
+    const handleDeletePrompt = async (index: number) => {
+        try {
+            await removeStarterPrompt(id, index);
+            setStarterPrompts(prev => prev.filter((_, i) => i !== index));
+            toast({
+                title: "Success",
+                description: "Prompt deleted successfully.",
+                variant: "default"
+            });
+        } catch (error) {
+            console.error('Error deleting prompt:', error);
+            toast({
+                title: "Error",
+                description: "Failed to delete prompt.",
+                variant: "destructive"
+            });
+        }
+    };
+
     return (
         <Dialog>
             <DialogTrigger asChild>
@@ -182,10 +216,11 @@ export function ModelSettingsDialog({
                 <Form {...form}>
                     <div className="space-y-6">
                         <Tabs defaultValue="general" className="mt-4">
-                            <TabsList className="grid w-full grid-cols-3">
+                            <TabsList className="grid w-full grid-cols-4">
                                 <TabsTrigger value="general">General</TabsTrigger>
                                 <TabsTrigger value="connection">Connection</TabsTrigger>
                                 <TabsTrigger value="advanced">Advanced</TabsTrigger>
+                                <TabsTrigger value="prompts">Starter Prompts</TabsTrigger>
                             </TabsList>
 
                             <TabsContent value="general" className="space-y-4 mt-4">
@@ -496,46 +531,153 @@ export function ModelSettingsDialog({
                                                 Custom instructions allow you to define specific behaviors and rules for your agent.
                                             </span>
                                         </div>
+
+                                        <div className="pt-4 border-t">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div>
+                                                    <h4 className="text-sm font-medium flex items-center gap-2">
+                                                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                                        Clear Agent Memory
+                                                    </h4>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Reset the agent's memory and start fresh
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        toast({
+                                                            title: "Success",
+                                                            description: "Agent memory cleared successfully",
+                                                        });
+                                                    }}
+                                                >
+                                                    Clear Memory
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-4 border-t">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div>
+                                                    <h4 className="text-sm font-medium flex items-center gap-2">
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                        Delete Agent
+                                                    </h4>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Permanently delete this agent and all its data
+                                                    </p>
+                                                </div>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button
+                                                            type="button"
+                                                            variant="destructive"
+                                                            size="sm"
+                                                            disabled={isDeleting}
+                                                        >
+                                                            {isDeleting ? "Deleting..." : "Delete Agent"}
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This action cannot be undone. This will permanently delete the agent
+                                                                and remove all associated data.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction
+                                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                onClick={async () => {
+                                                                    setIsDeleting(true);
+                                                                    await onDelete();
+                                                                    setIsDeleting(false);
+                                                                }}
+                                                            >
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </TabsContent>
+
+                            <TabsContent value="prompts" className="space-y-4 mt-4">
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="space-y-4"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <FormLabel className="text-base font-semibold">Saved Starter Prompts</FormLabel>
+                                    </div>
+                                    <div className="rounded-lg border bg-card p-4 space-y-4">
+                                        {starterPrompts.length > 0 ? (
+                                            <div className="space-y-3">
+                                                {starterPrompts.map((prompt, index) => (
+                                                    <motion.div
+                                                        key={index}
+                                                        initial={{ opacity: 0, x: -10 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        transition={{ delay: index * 0.1 }}
+                                                        className="group relative rounded-lg border bg-muted/30 p-3 hover:bg-muted/50 transition-colors"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="flex items-start gap-2">
+                                                                <Sparkles className="h-4 w-4 text-muted-foreground mt-1" />
+                                                                <p className="text-sm">{prompt}</p>
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                onClick={() => handleDeletePrompt(index)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                            </Button>
+                                                        </div>
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 5 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="flex flex-col items-center justify-center py-6 text-center space-y-4"
+                                            >
+                                                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                                                    <Sparkles className="h-6 w-6 text-muted-foreground" />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <h3 className="font-semibold">No Starter Prompts</h3>
+                                                    <p className="text-sm text-muted-foreground max-w-sm">
+                                                        Save prompts during chat by clicking the three dots next to your messages.
+                                                    </p>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                        <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground bg-muted/50 rounded-md p-2">
+                                            <Info className="h-4 w-4 flex-shrink-0" />
+                                            <span>
+                                                Starter prompts help you quickly access commonly used messages.
+                                            </span>
+                                        </div>
                                     </div>
                                 </motion.div>
                             </TabsContent>
                         </Tabs>
 
-                        <div className="flex justify-between mt-6">
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="destructive"
-                                        disabled={isDeleting}
-                                    >
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        {isDeleting ? "Deleting..." : "Delete Agent"}
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action cannot be undone. This will permanently delete the agent
-                                            and remove all associated data.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                            onClick={async () => {
-                                                setIsDeleting(true);
-                                                await onDelete();
-                                                setIsDeleting(false);
-                                            }}
-                                        >
-                                            Delete
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                        <div className="flex justify-end mt-6">
                             <Button type="button" onClick={form.handleSubmit(onSubmit)}>
                                 <Save className="h-4 w-4 mr-2" />
                                 Save Changes

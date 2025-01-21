@@ -5,8 +5,11 @@ import { useToast } from "@/hooks/use-toast";
 import { ChatHeader } from "./chat-header";
 import { MessageList } from "./message-list";
 import { ChatInput } from "./chat-input";
+import { ChatHistory } from "./chat-history";
 import { ChatMessage } from "@/utils/supabase/actions/user/user_chat";
 import { updateUserAssignedModel } from "@/utils/supabase/actions/user/assignedAgents";
+import { useRouter } from "next/navigation";
+import { getUserChatById, createUserChat, updateUserChat } from "@/utils/supabase/actions/user/user_chat";
 
 interface Model {
     id: number;
@@ -26,7 +29,7 @@ interface ChatContainerProps {
     model: Model;
     user: User | null;
     connectionKeys: any;
-    userAssignedModelId: number;
+    userAssignedModelId: string;
     isAdmin: boolean;
     timezone: string;
     isFavorite: boolean;
@@ -51,17 +54,40 @@ export function ChatContainer({
     setMessages,
     onFavoriteToggle,
     onDelete,
-    availableIcons
+    availableIcons,
 }: ChatContainerProps) {
 
     const [isTyping, setIsTyping] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
+    const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
+    const [refreshHistory, setRefreshHistory] = useState(0);
     const { toast } = useToast();
+    const router = useRouter();
+
+    const handleChatSelect = async (chatId: number) => {
+        try {
+            const chatData = await getUserChatById(chatId);
+            if (!chatData) {
+                throw new Error('Chat not found');
+            }
+            setMessages(chatData.chat || []);
+            router.push(`/protected/agents/${userAssignedModelId}?chatId=${chatId}`);
+        } catch (error) {
+            console.error('Error loading chat:', error);
+            toast({
+                title: "Error",
+                description: "Failed to load chat history. Please try again.",
+                variant: "destructive",
+            });
+            throw error; // Re-throw to let ChatHistory handle the error state
+        }
+    };
 
     const handleSubmit = async (message: string) => {
         if (!model || isTyping) return;
 
         setIsTyping(true);
+        setIsHistoryExpanded(false);
         const timestamp = Date.now();
         const userMessage: ChatMessage = {
             id: `user_${timestamp}_${Math.random().toString(36).substring(2, 11)}`,
@@ -69,8 +95,9 @@ export function ChatContainer({
             content: message
         };
 
-        setMessages((prev) => [...prev, userMessage]);
+        let currentChatId: number | null = null;
 
+        // Create assistant message for UI
         const assistantMessageId = `assistant_${timestamp + 1}_${Math.random().toString(36).substring(2, 11)}`;
         const assistantMessage: ChatMessage = {
             id: assistantMessageId,
@@ -78,13 +105,39 @@ export function ChatContainer({
             content: ''
         };
 
-        setMessages((prev) => [...prev, assistantMessage]);
-        const name = user?.user_metadata?.name
+        // Create a new chat or get existing chat ID
+        if (messages.length === 0 && user) {
+            try {
+                const { chatId } = await createUserChat(user.id, userAssignedModelId, message, assistantMessage);
+                currentChatId = chatId;
+                router.push(`/protected/agents/${userAssignedModelId}?chatId=${chatId}`);
+                setRefreshHistory(prev => prev + 1);
+                // For new chat, set initial messages
+                setMessages([userMessage, assistantMessage]);
+            } catch (error: any) {
+                console.error('Error creating chat:', error);
+                toast({
+                    title: "Error",
+                    description: "Failed to create new chat",
+                    variant: "destructive",
+                });
+                setIsTyping(false);
+                return;
+            }
+        } else {
+            const searchParams = new URLSearchParams(window.location.search);
+            const chatIdParam = searchParams.get('chatId');
+            currentChatId = chatIdParam ? parseInt(chatIdParam) : null;
+            // For existing chat, append new messages
+            setMessages(prev => [...prev, userMessage, assistantMessage]);
+        }
+
         try {
             const client = new FlowiseClient({
                 baseUrl: 'https://flowise.ibrcloud.com',
             });
-            const overrideConfig = typeof model.override_config === 'string' 
+            const sessionId = userAssignedModelId;
+            const overrideConfig = typeof model.override_config === 'string'
                 ? JSON.parse(model.override_config || '{}')
                 : model.override_config || {};
             setIsStreaming(true);
@@ -109,15 +162,33 @@ export function ChatContainer({
                 }
             }
 
+            // After getting complete response, update the chat in database
+            if (currentChatId) {
+                const updatedMessages = messages.length === 0
+                    ? [userMessage, { ...assistantMessage, content }]  // For new chat
+                    : [...messages, userMessage, { ...assistantMessage, content }];  // For existing chat
+                await updateUserChat(currentChatId, updatedMessages);
+            }
+
         } catch (error: any) {
             console.error('Error:', error);
-            setMessages((prev) =>
-                prev.map((m) =>
+            const errorMessage = `Error: ${error.message || 'Failed to get response from the model.'}`;
+            setMessages(prev =>
+                prev.map(m =>
                     m.id === assistantMessageId
-                        ? { ...m, content: `Error: ${error.message || 'Failed to get response from the model.'}` }
+                        ? { ...m, content: errorMessage }
                         : m
                 )
             );
+
+            // Update chat with error message
+            if (currentChatId) {
+                const updatedMessages = messages.length === 0
+                    ? [userMessage, { ...assistantMessage, content: errorMessage }]  // For new chat
+                    : [...messages, userMessage, { ...assistantMessage, content: errorMessage }];  // For existing chat
+                await updateUserChat(currentChatId, updatedMessages);
+            }
+
             toast({
                 title: "Error",
                 description: error.message || "Failed to get response from the model.",
@@ -175,6 +246,18 @@ export function ChatContainer({
                 showFullHeader={messages.length === 0}
             />
 
+            {user && (
+                <ChatHistory
+                    userId={user.id}
+                    modelId={userAssignedModelId}
+                    currentChatId={messages.length > 0 ? parseInt(messages[0].id.split('_')[1]) : null}
+                    isExpanded={isHistoryExpanded}
+                    onExpandedChange={setIsHistoryExpanded}
+                    onChatSelect={handleChatSelect}
+                    refreshTrigger={refreshHistory}
+                />
+            )}
+
             <main className="flex-1 overflow-hidden relative">
                 {messages.length === 0 ? (
                     <div className="h-full" />
@@ -185,6 +268,7 @@ export function ChatContainer({
                         model={model}
                         isTyping={isTyping}
                         availableIcons={availableIcons}
+                        userAssignedModelId={userAssignedModelId.toString()}
                     />
                 )}
             </main>

@@ -5,18 +5,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Mic, Paperclip, Send } from "lucide-react";
 import { motion } from "framer-motion";
-import { StarterPrompts } from "./starter-prompts";
 
 interface ChatInputProps {
     isTyping: boolean;
     onSubmit: (message: string) => Promise<void>;
     modelName: string;
-    showStarterPrompts?: boolean;
     messages: any[];
     flowise_id: string | null;
 }
 
-export function ChatInput({ isTyping, onSubmit, modelName, showStarterPrompts = true, messages = [], flowise_id }: ChatInputProps) {
+export function ChatInput({ isTyping, onSubmit, modelName, messages = [], flowise_id }: ChatInputProps) {
     const [input, setInput] = useState('');
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -42,20 +40,10 @@ export function ChatInput({ isTyping, onSubmit, modelName, showStarterPrompts = 
             }
         }
     };
-
-    const handlePromptSelect = async (prompt: string) => {
-        try {
-            await onSubmit(prompt);
-        } catch (error) {
-            console.error('Error submitting prompt:', error);
-        }
-    };
+    
 
     return (
         <div className="flex flex-col">
-            {showStarterPrompts && messages.length === 0 && (
-                <StarterPrompts onPromptSelect={handlePromptSelect} isTyping={isTyping} flowise_id={flowise_id} />
-            )}
             <div className="border-t bg-background p-4 w-full">
                 <div className="max-w-4xl mx-auto">
                     <form onSubmit={handleSubmit} className="relative flex gap-2">
