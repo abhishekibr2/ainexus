@@ -15,6 +15,7 @@ interface Model {
     is_auth: boolean;
     app_id: number;
     fields?: string[];
+    o_auth: boolean;
     chatflow_id: string;
     override_config?: string;
 }

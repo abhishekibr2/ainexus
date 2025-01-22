@@ -31,6 +31,7 @@ interface Model {
     app_id: number;
     fields?: string[];
     chatflow_id: string;
+    o_auth: boolean;
 }
 
 const availableIcons: { [key: string]: any } = {
@@ -121,7 +122,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     setIsLoading(false);
                     return;
                 }
-
+                console.log(models)
                 const hasModelAccess = assignedModels?.some(m => m.id === id);
                 if (!hasModelAccess) {
                     if (isMounted) {
