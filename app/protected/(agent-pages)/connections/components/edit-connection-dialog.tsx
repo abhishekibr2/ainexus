@@ -60,10 +60,10 @@ export function EditConnectionDialog({ connection, onSave }: EditConnectionDialo
         }
 
         // Validate all fields are filled
-        if (connection.parsedConnectionKeys) {
-            connection.parsedConnectionKeys.forEach(({ key }) => {
-                if (!connectionValues[key]?.trim()) {
-                    newErrors[key] = true;
+        if (connection.application?.fields) {
+            connection.application.fields.forEach((field) => {
+                if (!connectionValues[field]?.trim()) {
+                    newErrors[field] = true;
                     isValid = false;
                 }
             });
@@ -166,31 +166,31 @@ export function EditConnectionDialog({ connection, onSave }: EditConnectionDialo
                     </div>
                     <div className="grid gap-4">
                         <Label>Connection Values</Label>
-                        {connection.parsedConnectionKeys?.map(({ key }) => (
-                            <div key={key} className="grid gap-2">
-                                <Label className="required">{key}</Label>
+                        {connection.application?.fields?.map((field) => (
+                            <div key={field} className="grid gap-2">
+                                <Label className="required">{field}</Label>
                                 <div className="relative">
                                     <Input
-                                        type={showValues[key] ? "text" : "password"}
-                                        placeholder={`Enter ${key}`}
-                                        value={connectionValues[key] || ''}
+                                        type={showValues[field] ? "text" : "password"}
+                                        placeholder={`Enter ${field}`}
+                                        value={connectionValues[field] || ''}
                                         onChange={(e) => {
                                             setConnectionValues(prev => ({
                                                 ...prev,
-                                                [key]: e.target.value
+                                                [field]: e.target.value
                                             }));
-                                            setErrors(prev => ({ ...prev, [key]: false }));
+                                            setErrors(prev => ({ ...prev, [field]: false }));
                                         }}
-                                        className={errors[key] ? "border-red-500" : ""}
+                                        className={errors[field] ? "border-red-500" : ""}
                                     />
                                     <Button
                                         type="button"
                                         variant="ghost"
                                         size="icon"
                                         className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 p-0"
-                                        onClick={() => toggleValueVisibility(key)}
+                                        onClick={() => toggleValueVisibility(field)}
                                     >
-                                        {showValues[key] ? (
+                                        {showValues[field] ? (
                                             <EyeOffIcon className="h-3 w-3" />
                                         ) : (
                                             <EyeIcon className="h-3 w-3" />

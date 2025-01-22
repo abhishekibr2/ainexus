@@ -24,6 +24,7 @@ interface Model {
     chatflow_id: string;
     fields?: string[];
     override_config?: string;
+    o_auth: boolean;
 }
 
 interface ChatContainerProps {
@@ -65,25 +66,6 @@ export function ChatContainer({
     const { toast } = useToast();
     const router = useRouter();
     const [showStarterPrompts, setShowStarterPrompts] = useState(true);
-
-    const handleChatSelect = async (chatId: number) => {
-        try {
-            const chatData = await getUserChatById(chatId);
-            if (!chatData) {
-                throw new Error('Chat not found');
-            }
-            setMessages(chatData.chat || []);
-            router.push(`/protected/agents/${userAssignedModelId}?chatId=${chatId}`);
-        } catch (error) {
-            console.error('Error loading chat:', error);
-            toast({
-                title: "Error",
-                description: "Failed to load chat history. Please try again.",
-                variant: "destructive",
-            });
-            throw error; // Re-throw to let ChatHistory handle the error state
-        }
-    };
 
     const handleSubmit = async (message: string) => {
         if (!model || isTyping) return;

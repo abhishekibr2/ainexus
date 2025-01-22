@@ -42,6 +42,7 @@ interface Model {
     is_auth: boolean;
     app_id: number;
     fields?: string[];
+    o_auth: boolean;
 }
 
 interface ModelSettingsDialogProps {
@@ -217,9 +218,11 @@ export function ModelSettingsDialog({
                 <Form {...form}>
                     <div className="space-y-6">
                         <Tabs defaultValue="general" className="mt-4">
-                            <TabsList className="grid w-full grid-cols-4">
+                            <TabsList className={`grid w-full ${model.is_auth && !model.o_auth ? 'grid-cols-4' : 'grid-cols-3'}`}>
                                 <TabsTrigger value="general">General</TabsTrigger>
-                                <TabsTrigger value="connection">Connection</TabsTrigger>
+                                {model.is_auth && !model.o_auth && (
+                                    <TabsTrigger value="connection">Connection</TabsTrigger>
+                                )}
                                 <TabsTrigger value="advanced">Advanced</TabsTrigger>
                                 <TabsTrigger value="prompts">Starter Prompts</TabsTrigger>
                             </TabsList>
