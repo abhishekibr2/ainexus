@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Bot, Clock, Key, Check, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Bot, Clock, Key, Check, Brain, MessageSquare, Code2, FileText, GraduationCap, BarChart3, Sparkles, Zap, Database, Search, Settings, Lock } from "lucide-react";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { assignModelToUser } from "@/utils/supabase/actions/user/assignedAgents";
+import { signInWithGoogle } from "@/utils/supabase/actions/oauth";
 import { Model } from "./types";
 import { ModelConfigForm } from "./ModelConfigForm";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 const iconMap = {
     brain: Brain,
@@ -45,9 +50,33 @@ interface ModelCardProps {
 
 export const ModelCard: React.FC<ModelCardProps> = ({ model }) => {
     const IconComponent = iconMap[model.icon as keyof typeof iconMap] || Bot;
-    const [isLoading, setIsLoading] = useState(false);
     const [showConfigForm, setShowConfigForm] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        // Check for OAuth success/error parameters
+        const oauthSuccess = searchParams.get('oauth_success');
+        const oauthError = searchParams.get('oauth_error');
+        const modelParam = searchParams.get('model');
+
+        if (oauthSuccess && modelParam === model.id.toString()) {
+            if (oauthSuccess === 'true') {
+                toast({
+                    title: "Setup Complete",
+                    description: "Your model has been successfully configured with Google Drive access. You can now use it!",
+                    variant: "default",
+                });
+            } else if (oauthError) {
+                toast({
+                    title: "Setup Failed",
+                    description: oauthError,
+                    variant: "destructive",
+                });
+            }
+        }
+    }, [searchParams, model.id, toast]);
 
     const handleConfigSubmit = async (data: any) => {
         setIsLoading(true);
@@ -121,6 +150,36 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model }) => {
             });
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleOAuthLogin = async (provider: string) => {
+        try {
+            if (provider === 'google') {
+                const url = await signInWithGoogle({
+                    id: model.id,
+                    appId: model.app_id,
+                    name: model.name,
+                    description: model.description,
+                    instruction: model.instruction
+                });
+                if (url) {
+                    window.location.href = url;
+                }
+            } else {
+                toast({
+                    title: "Unsupported Provider",
+                    description: `${provider} authentication is not supported yet.`,
+                    variant: "destructive",
+                });
+            }
+        } catch (error) {
+            console.error('OAuth error:', error);
+            toast({
+                title: "Authentication Failed",
+                description: "Failed to initiate authentication. Please try again.",
+                variant: "destructive",
+            });
         }
     };
 
@@ -251,6 +310,17 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model }) => {
                         onCancel={() => setShowConfigForm(false)}
                     />
                 </div>
+                <CardFooter className="flex justify-between items-center gap-2">
+                    {model.o_auth && model.provider && (
+                        <Button
+                            variant="default"
+                            className="w-full"
+                            onClick={() => handleOAuthLogin(model.provider!)}
+                        >
+                            Oauth with {model.provider}
+                        </Button>
+                    )}
+                </CardFooter>
             </DialogContent>
         </Dialog>
     );

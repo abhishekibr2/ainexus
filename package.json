@@ -58,6 +58,7 @@
     "remark-gfm": "^4.0.0",
     "remark-markdown": "^0.0.1",
     "remark-math": "^6.0.0",
+    "simple-oauth2": "^5.1.0",
     "unframer": "^2.13.0",
     "use-debounce": "^10.0.4",
     "zod": "^3.24.1"

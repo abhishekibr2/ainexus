@@ -32,6 +32,8 @@ interface Application {
     logo: string;
     auth_required: boolean;
     fields: string[];
+    o_auth: boolean;
+    provider: string;
 }
 
 export function ApplicationList() {
@@ -114,6 +116,7 @@ export function ApplicationList() {
                             <TableHead>Logo URL</TableHead>
                             <TableHead>Auth Required</TableHead>
                             <TableHead>Fields</TableHead>
+                            <TableHead>OAuth</TableHead>
                             <TableHead>Created At</TableHead>
                             <TableHead>Actions</TableHead>
                         </TableRow>
@@ -133,6 +136,7 @@ export function ApplicationList() {
                                     <TableCell>{app.logo || '-'}</TableCell>
                                     <TableCell>{app.auth_required ? "Yes" : "No"}</TableCell>
                                     <TableCell>{app.fields?.join(", ") || "-"}</TableCell>
+                                    <TableCell>{app.o_auth ? "Yes" : "No"}</TableCell>
                                     <TableCell>
                                         {new Date(app.created_at).toLocaleDateString()}
                                     </TableCell>

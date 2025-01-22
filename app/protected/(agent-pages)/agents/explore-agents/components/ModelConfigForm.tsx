@@ -214,7 +214,7 @@ export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmi
         try {
             await onSubmit({
                 ...data,
-                auth: model.is_auth ? {
+                auth: model.is_auth && !model.o_auth ? {
                     ...data.auth,
                     user_connection_id: selectedConnectionId || undefined
                 } : undefined
@@ -247,7 +247,7 @@ export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmi
                         </div>
 
                         {/* Authentication Section */}
-                        {model.is_auth && (
+                        {model.is_auth && !model.o_auth && (
                             <div className="space-y-4 pt-4">
                                 <div className="rounded-lg border p-4 space-y-4">
                                     <div className="flex items-center justify-between">
@@ -285,8 +285,8 @@ export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmi
                                         </SelectContent>
                                     </Select>
                                     {!isLoading && availableConnections.length === 0 && (
-                                        <div className="text-sm text-muted-foreground text-center py-2">
-                                            No connections available. Create a new connection to proceed.
+                                        <div className="text-sm text-muted-foreground">
+                                            No connections available. Add a new connection to continue.
                                         </div>
                                     )}
                                 </div>

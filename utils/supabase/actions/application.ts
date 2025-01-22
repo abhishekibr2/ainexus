@@ -10,6 +10,8 @@ const createApplicationSchema = z.object({
     logo: z.string().optional().nullable(),
     auth_required: z.boolean(),
     fields: z.array(z.string()),
+    o_auth: z.boolean(),
+    provider: z.string().optional().nullable(),
 });
 
 type CreateApplicationValues = z.infer<typeof createApplicationSchema>;
@@ -30,6 +32,7 @@ export async function createApplication(data: CreateApplicationValues) {
         ...data,
         description: data.description || null,
         logo: data.logo || null,
+        fields: data.fields || [],
     });
 
     const { data: newApplication, error } = await supabase
@@ -54,6 +57,7 @@ export async function updateApplication(applicationId: number, data: CreateAppli
         ...data,
         description: data.description || null,
         logo: data.logo || null,
+        fields: data.fields || [],
     });
 
     const { data: updatedApplication, error } = await supabase

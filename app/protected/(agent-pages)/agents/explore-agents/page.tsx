@@ -12,7 +12,6 @@ import type { Model } from "./components/types";
 import { ModelCard } from "./components/ModelCard";
 import { ModelCardSkeleton } from "./components/ModelCardSkeleton";
 import { EmptyState } from "./components/EmptyState";
-import { categories } from "./components/types";
 
 const container = {
     hidden: { opacity: 0 },
@@ -117,7 +116,7 @@ export default function ExploreModels() {
 
     const filteredModels = models.filter(model => {
         const matchesSearch = model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            model.description.toLowerCase().includes(searchTerm.toLowerCase());
+            (model.description && model.description.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesCategory = selectedCategory === "all" || model.icon === selectedCategory;
         return matchesSearch && matchesCategory;
     });
