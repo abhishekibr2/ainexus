@@ -50,9 +50,8 @@ export const signUpAction = async (formData: FormData) => {
 
 export const signUpWithGoogleAction = async () => {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
   
-  const redirectUrl = origin || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
   
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
