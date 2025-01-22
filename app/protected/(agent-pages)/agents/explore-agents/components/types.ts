@@ -18,21 +18,27 @@ export interface Connection {
 export interface Model {
     id: number;
     name: string;
-    description: string;
+    description?: string;
     icon: string;
+    instruction?: string;
+    created_at: string;
+    is_public: boolean;
     is_auth: boolean;
-    app_id: number;
+    override_config: any;
     created_by: {
         name: string;
     };
-    created_at: string;
-    fields?: string[];
+    app_id: number;
     permission?: {
         type: 'global' | 'restricted';
+        restricted_to?: ('user' | 'workspace')[];
         restricted_users?: string[];
-        restricted_to?: string[];
         restricted_workspaces?: number[];
     };
+    chatflow_id: string;
+    fields: string[];
+    o_auth: boolean;
+    provider?: string;
 }
 
 // Step form schema
@@ -94,11 +100,12 @@ export const availableIcons = [
 ] as const;
 
 export const categories = [
-    { id: "all", name: "All Agents" },
-    // { id: "chat", name: "Chat" },
-    // { id: "code", name: "Code" },
-    // { id: "research", name: "Research & Analysis" },
-    // { id: "education", name: "Education" },
-    // { id: "productivity", name: "Productivity" },
-    // { id: "document", name: "Document" },
+    { id: "all", name: "All" },
+    { id: "writing", name: "Writing" },
+    { id: "analysis", name: "Analysis" },
+    { id: "coding", name: "Coding" },
+    { id: "image", name: "Image" },
+    { id: "audio", name: "Audio" },
+    { id: "video", name: "Video" },
+    { id: "other", name: "Other" }
 ] as const; 

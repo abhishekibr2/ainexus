@@ -135,7 +135,9 @@ export async function getModels(userId: string) {
         .select(`
             *,
             application:app_id (
-                fields
+                fields,
+                o_auth,
+                provider
             ),
             created_by:user (
                 name
@@ -152,6 +154,8 @@ export async function getModels(userId: string) {
     const transformedData = data.map(model => ({
         ...model,
         fields: model.application?.fields || [],
+        o_auth: model.application?.o_auth || false,
+        provider: model.application?.provider || null,
         application: undefined // Remove the nested application object
     }));
 
