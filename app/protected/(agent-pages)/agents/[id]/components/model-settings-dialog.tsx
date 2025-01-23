@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from 'next/navigation';
-import Link from "next/link";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -231,7 +230,6 @@ export function ModelSettingsDialog({
             const values = Object.fromEntries(
                 selectedConn.parsedConnectionKeys.map(({ key, value }) => [key, value])
             );
-            
             setConnectionFieldValues(values);
             setSelectedConnectionId(selectedConn.id);
             
@@ -283,123 +281,33 @@ export function ModelSettingsDialog({
     };
 
     const handleSheetChange = async (sheetId: string) => {
-        const selected = sheets.find(s => s.id === sheetId);
-        if (selected && selectedConnectionId) {
-            try {
-                const currentConnection = availableConnections.find(
-                    conn => conn.id === selectedConnectionId
-                );
-                
-                if (currentConnection?.parsedConnectionKeys) {
-                    // Create new connection keys array with updated sheet information
-                    let updatedKeys = currentConnection.parsedConnectionKeys.map(pair => 
-                        `${pair.key}=${pair.value}`
-                    );
-
-                    // Remove existing sheet entries if they exist
-                    updatedKeys = updatedKeys.filter(key => 
-                        !key.startsWith('sheet_id=') && 
-                        !key.startsWith('sheet_name=') &&
-                        !key.startsWith('sheet_tab=')
-                    );
-
-                    // Add new sheet entries
-                    updatedKeys.push(`sheet_id=${selected.id}`);
-                    updatedKeys.push(`sheet_name=${selected.name}`);
-
-                    // Format as PostgreSQL array
-                    const { error } = await updateUserConnection(
-                        selectedConnectionId,
-                        `{${updatedKeys.map(key => `"${key}"`).join(',')}}`,
-                        undefined
-                    );
-                    
-                    if (error) throw error;
-
-                    // Update the connection field values
-                    const values = Object.fromEntries(
-                        updatedKeys.map(key => {
-                            const [k, v] = key.split('=');
-                            return [k, v];
-                        })
-                    );
-                    setConnectionFieldValues(values);
-                    onConnectionKeysChange({
-                        ...values,
-                        connection_id: selectedConnectionId
-                    });
-                    
-                    toast({
-                        title: "Success",
-                        description: "Sheet selection updated successfully",
-                    });
-                }
-            } catch (error) {
-                console.error('Error updating sheet selection:', error);
-                toast({
-                    title: "Error",
-                    description: "Failed to update sheet selection",
-                    variant: "destructive",
-                });
-            }
+        const selectedSheet = sheets.find(s => s.id === sheetId);
+        if (selectedSheet) {
+            const updatedValues = {
+                ...connectionFieldValues,
+                sheet_id: sheetId,
+                sheet_name: selectedSheet.name
+            };
+            console.log('Updating connection field values:', updatedValues);
+            setConnectionFieldValues(updatedValues);
+            onConnectionKeysChange({
+                ...updatedValues,
+                connection_id: selectedConnectionId
+            });
         }
     };
 
     const handleTabChange = async (tab: string) => {
-        if (selectedConnectionId) {
-            try {
-                const currentConnection = availableConnections.find(
-                    conn => conn.id === selectedConnectionId
-                );
-                
-                if (currentConnection?.parsedConnectionKeys) {
-                    // Create new connection keys array with updated tab information
-                    let updatedKeys = currentConnection.parsedConnectionKeys.map(pair => 
-                        `${pair.key}=${pair.value}`
-                    );
-
-                    // Remove existing tab entry if it exists
-                    updatedKeys = updatedKeys.filter(key => !key.startsWith('sheet_tab='));
-
-                    // Add new tab entry
-                    updatedKeys.push(`sheet_tab=${tab}`);
-
-                    // Format as PostgreSQL array
-                    const { error } = await updateUserConnection(
-                        selectedConnectionId,
-                        `{${updatedKeys.map(key => `"${key}"`).join(',')}}`,
-                        undefined
-                    );
-                    
-                    if (error) throw error;
-
-                    // Update the connection field values
-                    const values = Object.fromEntries(
-                        updatedKeys.map(key => {
-                            const [k, v] = key.split('=');
-                            return [k, v];
-                        })
-                    );
-                    setConnectionFieldValues(values);
-                    onConnectionKeysChange({
-                        ...values,
-                        connection_id: selectedConnectionId
-                    });
-                    
-                    toast({
-                        title: "Success",
-                        description: "Sheet tab updated successfully",
-                    });
-                }
-            } catch (error) {
-                console.error('Error updating sheet tab:', error);
-                toast({
-                    title: "Error",
-                    description: "Failed to update sheet tab",
-                    variant: "destructive",
-                });
-            }
-        }
+        const updatedValues = {
+            ...connectionFieldValues,
+            sheet_tab: tab
+        };
+        console.log('Updating tab in connection field values:', updatedValues);
+        setConnectionFieldValues(updatedValues);
+        onConnectionKeysChange({
+            ...updatedValues,
+            connection_id: selectedConnectionId
+        });
     };
 
     return (
@@ -494,22 +402,29 @@ export function ModelSettingsDialog({
                                                     <FormLabel className="text-base font-semibold">Google Sheet Settings</FormLabel>
                                                 </div>
                                                 <div className="rounded-lg border bg-card p-4 space-y-4">
-                                                    <SheetSettingsDialog
-                                                        modelId={model.id}
-                                                        sheets={sheets}
-                                                        selectedSheetId={connectionKeys?.sheet_id}
-                                                        selectedTab={connectionKeys?.sheet_tab}
-                                                        accessToken={connectionKeys?.access_token}
-                                                        onSheetChange={handleSheetChange}
-                                                        onTabChange={handleTabChange}
-                                                        connectionId={selectedConnectionId}
-                                                    />
-                                                    {connectionKeys?.sheet_id && (
+                                                    {loadingSheets ? (
+                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                            <span>Loading sheets...</span>
+                                                        </div>
+                                                    ) : (
+                                                        <SheetSettingsDialog
+                                                            modelId={model.id}
+                                                            sheets={sheets}
+                                                            selectedSheetId={connectionFieldValues?.sheet_id}
+                                                            selectedTab={connectionFieldValues?.sheet_tab}
+                                                            accessToken={connectionFieldValues?.access_token}
+                                                            onSheetChange={handleSheetChange}
+                                                            onTabChange={handleTabChange}
+                                                            connectionId={selectedConnectionId}
+                                                        />
+                                                    )}
+                                                    {connectionFieldValues?.sheet_id && (
                                                         <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                                                             <Info className="h-4 w-4 flex-shrink-0" />
                                                             <span>
-                                                                Current sheet: {connectionKeys.sheet_name || connectionKeys.sheet_id}
-                                                                {connectionKeys.sheet_tab && ` (Tab: ${connectionKeys.sheet_tab})`}
+                                                                Current sheet: {connectionFieldValues.sheet_name || connectionFieldValues.sheet_id}
+                                                                {connectionFieldValues.sheet_tab && ` (Tab: ${connectionFieldValues.sheet_tab})`}
                                                             </span>
                                                         </div>
                                                     )}

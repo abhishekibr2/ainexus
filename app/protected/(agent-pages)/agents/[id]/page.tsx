@@ -122,7 +122,6 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     setIsLoading(false);
                     return;
                 }
-                console.log(models)
                 const hasModelAccess = assignedModels?.some(m => m.id === id);
                 if (!hasModelAccess) {
                     if (isMounted) {

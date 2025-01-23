@@ -13,6 +13,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { FormField, FormItem, FormLabel, FormControl, Form } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const modelConfigSchema = z.object({
+    basic: z.object({
+        override_name: z.string().optional(),
+        override_description: z.string().optional(),
+    }),
+    advanced: z.object({
+        override_instructions: z.string().optional(),
+    }),
+});
+
+type ModelConfigValues = z.infer<typeof modelConfigSchema>;
 
 const iconMap = {
     brain: Brain,
@@ -54,6 +71,19 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model }) => {
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     const searchParams = useSearchParams();
+
+    const form = useForm<ModelConfigValues>({
+        resolver: zodResolver(modelConfigSchema),
+        defaultValues: {
+            basic: {
+                override_name: `My ${model.name}`,
+                override_description: model.description,
+            },
+            advanced: {
+                override_instructions: "",
+            },
+        },
+    });
 
     useEffect(() => {
         // Check for OAuth success/error parameters
@@ -153,15 +183,15 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model }) => {
         }
     };
 
-    const handleOAuthLogin = async (provider: string) => {
+    const handleOAuthLogin = async (provider: string, configData: any) => {
         try {
             if (provider === 'google') {
                 const url = await signInWithGoogle({
                     id: model.id,
                     appId: model.app_id,
-                    name: model.name,
-                    description: model.description,
-                    instruction: model.instruction
+                    name: configData?.basic?.override_name || model.name,
+                    description: configData?.basic?.override_description || model.description,
+                    instruction: configData?.advanced?.override_instructions || model.instruction
                 });
                 if (url) {
                     window.location.href = url;
@@ -291,36 +321,46 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model }) => {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                    <DialogTitle>
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-primary/5">
-                                <IconComponent className="h-8 w-8 text-primary" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-semibold">{model.name}</h3>
-                                <span className="text-sm text-muted-foreground font-normal">Created by {model.created_by.name}</span>
-                            </div>
-                        </div>
-                    </DialogTitle>
+                    <DialogTitle>Configure {model.name}</DialogTitle>
+                    <DialogDescription>
+                        Configure this agent before adding it to your workspace
+                    </DialogDescription>
                 </DialogHeader>
-                <div className="py-6">
+                {model.o_auth && model.provider ? (
+                    <Form {...form}>
+                        <div className="space-y-6">
+                            <div className="space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="basic.override_name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Agent Name</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder={`My ${model.name}`} {...field} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                            <Button 
+                                className="w-full"
+                                type="button"
+                                onClick={() => handleOAuthLogin(model.provider!, form.getValues())}
+                                disabled={isLoading}
+                            >
+                                {isLoading ? "Connecting..." : `Connect with ${model.provider}`}
+                            </Button>
+                        </div>
+                    </Form>
+                ) : (
                     <ModelConfigForm
                         model={model}
                         onSubmit={handleConfigSubmit}
                         onCancel={() => setShowConfigForm(false)}
+                        handleOAuthLogin={handleOAuthLogin}
                     />
-                </div>
-                <CardFooter className="flex justify-between items-center gap-2">
-                    {model.o_auth && model.provider && (
-                        <Button
-                            variant="default"
-                            className="w-full"
-                            onClick={() => handleOAuthLogin(model.provider!)}
-                        >
-                            Oauth with {model.provider}
-                        </Button>
-                    )}
-                </CardFooter>
+                )}
             </DialogContent>
         </Dialog>
     );
