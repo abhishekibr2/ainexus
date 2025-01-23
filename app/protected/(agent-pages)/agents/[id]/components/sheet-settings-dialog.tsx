@@ -67,33 +67,22 @@ export function SheetSettingsDialog({
     const [currentTab, setCurrentTab] = useState<string | undefined>(selectedTab);
     const [isSaving, setIsSaving] = useState(false);
 
-    console.log('SheetSettingsDialog render:', {
-        selectedSheetId,
-        currentSheetId,
-        selectedTab,
-        currentTab,
-        sheets: sheets.length
-    });
 
     // Update current values when props change
     useEffect(() => {
-        console.log('Props changed:', { selectedSheetId, selectedTab });
         setCurrentSheetId(selectedSheetId);
         setCurrentTab(selectedTab);
     }, [selectedSheetId, selectedTab]);
 
     useEffect(() => {
         if (currentSheetId && accessToken && open) {
-            console.log('Fetching tabs for sheet:', currentSheetId);
             setIsLoadingTabs(true);
             fetchSheetTabs(currentSheetId, accessToken)
                 .then(tabs => {
-                    console.log('Fetched tabs:', tabs);
                     setSheetTabs(tabs);
                     // Only set default tab if no tab is selected AND there are tabs available
                     if (!currentTab && tabs.length > 0) {
                         const firstTab = tabs[0].title;
-                        console.log('Setting default tab:', firstTab);
                         setCurrentTab(firstTab);
                     }
                 })
@@ -104,7 +93,6 @@ export function SheetSettingsDialog({
     }, [currentSheetId, accessToken, open, currentTab]);
 
     const handleSheetChange = (sheetId: string) => {
-        console.log('handleSheetChange:', { sheetId, currentSheetId });
         setCurrentSheetId(sheetId);
         // Reset tab when changing sheets
         setCurrentTab(undefined);
@@ -112,13 +100,11 @@ export function SheetSettingsDialog({
     };
 
     const handleTabChange = (tab: string) => {
-        console.log('handleTabChange:', { tab, currentTab });
         setCurrentTab(tab);
     };
 
     const handleSave = async () => {
         if (!connectionId || !currentSheetId || !currentTab) {
-            console.log('Missing required data:', { connectionId, currentSheetId, currentTab });
             return;
         }
         setIsSaving(true);
