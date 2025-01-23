@@ -13,6 +13,8 @@ export interface Connection {
   connection_key: string;
   app_id: number;
   connection_name: string;
+  sheet_id?: string;
+  sheet_name?: string;
   application?: {
     id: number;
     name: string;
@@ -35,29 +37,15 @@ function parseConnectionKeyString(keyString: string | string[]): ConnectionKeyPa
       return keyString
         .filter(Boolean)
         .map(pair => {
-          const [key, value] = pair.split('=').map(s => s.trim());
+          const [key, value] = pair.split('=').map((s: string) => s.trim());
           return { key: key || '', value: value || '' };
         });
     }
 
     // If it's a string in PostgreSQL array format
     if (typeof keyString === 'string') {
-      if (keyString.startsWith('{') && keyString.endsWith('}')) {
-        const cleanString = keyString.slice(1, -1); // Remove { }
-        if (!cleanString) return [];
-
-        return cleanString
-          .split(',')
-          .filter(Boolean)
-          .map(pair => {
-            const cleanPair = pair.replace(/^"|"$/g, '').trim(); // Remove quotes
-            const [key, value] = cleanPair.split('=').map(s => s.trim());
-            return { key: key || '', value: value || '' };
-          });
-      }
-
-      // If it's a JSON string
       try {
+        // Try parsing as JSON first
         const parsed = JSON.parse(keyString);
         if (Array.isArray(parsed)) {
           return parsed
@@ -67,18 +55,25 @@ function parseConnectionKeyString(keyString: string | string[]): ConnectionKeyPa
               return { key: key || '', value: value || '' };
             });
         }
-
-        // If it's an object
-        return Object.entries(parsed)
-          .filter(([key, value]) => key && value)
-          .map(([key, value]) => ({
-            key,
-            value: String(value).trim()
-          }));
       } catch {
-        // If JSON parsing fails, try direct key=value format
+        // If JSON parsing fails, try PostgreSQL array format
+        if (keyString.startsWith('{') && keyString.endsWith('}')) {
+          const cleanString = keyString.slice(1, -1); // Remove { }
+          if (!cleanString) return [];
+
+          return cleanString
+            .split(',')
+            .filter(Boolean)
+            .map(pair => {
+              const cleanPair = pair.replace(/^"|"$/g, '').trim(); // Remove quotes
+              const [key, value] = cleanPair.split('=').map((s: string) => s.trim());
+              return { key: key || '', value: value || '' };
+            });
+        }
+
+        // If it's a single key=value pair
         if (keyString.includes('=')) {
-          const [key, value] = keyString.split('=').map(s => s.trim());
+          const [key, value] = keyString.split('=').map((s: string) => s.trim());
           return [{ key: key || '', value: value || '' }];
         }
       }
@@ -126,7 +121,7 @@ export async function getUserConnections(userId: string) {
       []
   })) || [];
 
-  return { data: connectionsWithParsedKeys, error: null };
+  return { data: connectionsWithParsedKeys, error };
 }
 
 export async function createUserConnection(
@@ -181,7 +176,10 @@ export async function createUserConnection(
 export async function updateUserConnection(
   connectionId: number,
   connectionKey?: string,
-  connectionName?: string
+  connectionName?: string,
+  sheetId?: string,
+  sheetName?: string,
+  sheetTab?: string
 ) {
   if (!connectionId) throw new Error('Connection ID is required');
 
@@ -194,6 +192,29 @@ export async function updateUserConnection(
   }
   if (connectionName !== undefined) {
     updateData.connection_name = connectionName.trim();
+  }
+  if (sheetId !== undefined) {
+    updateData.sheet_id = sheetId;
+  }
+  if (sheetName !== undefined) {
+    updateData.sheet_name = sheetName;
+  }
+  if (sheetTab !== undefined) {
+    // Add sheet_tab to connection_key if it exists
+    const currentKeys = updateData.connection_key ? 
+      parseConnectionKeyString(updateData.connection_key) : 
+      [];
+    
+    // Remove existing sheet_tab if any
+    const filteredKeys = currentKeys.filter(pair => pair.key !== 'sheet_tab');
+    
+    // Add new sheet_tab
+    filteredKeys.push({ key: 'sheet_tab', value: sheetTab });
+    
+    // Convert back to PostgreSQL array format
+    updateData.connection_key = `{${filteredKeys.map(pair => 
+      `"${pair.key}=${pair.value}"`
+    ).join(',')}}`;
   }
 
   const { data, error } = await supabase

@@ -19,11 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Bot, MessageSquare, FileText, Info, Lock, Check, Key, Save, Trash2, Pencil, Sparkles } from "lucide-react";
+import { Settings, Bot, MessageSquare, FileText, Info, Lock, Check, Key, Save, Trash2, Pencil, Sparkles, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { EditConnectionDialog } from "@/app/protected/(agent-pages)/connections/components/edit-connection-dialog";
 import { updateUserConnection } from "@/utils/supabase/actions/user/connections";
 import { getStarterPrompts, removeStarterPrompt } from "@/utils/supabase/actions/user/starterPrompts";
+import { SheetSettingsDialog } from "./sheet-settings-dialog";
 
 const settingsFormSchema = z.object({
     name: z.string().optional(),
@@ -45,6 +46,11 @@ interface Model {
     o_auth: boolean;
 }
 
+interface GoogleSheet {
+    id: string;
+    name: string;
+}
+
 interface ModelSettingsDialogProps {
     model: Model;
     connectionKeys: any;
@@ -52,6 +58,32 @@ interface ModelSettingsDialogProps {
     onSave: (settings: any) => Promise<void>;
     isAdmin: boolean;
     onConnectionKeysChange: (keys: any) => void;
+}
+
+async function fetchGoogleSheets(accessToken: string): Promise<GoogleSheet[]> {
+    try {
+        const response = await fetch(
+            'https://www.googleapis.com/drive/v3/files?q=mimeType%3D%27application%2Fvnd.google-apps.spreadsheet%27',
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            }
+        );
+        
+        if (!response.ok) {
+            throw new Error('Failed to fetch sheets');
+        }
+        
+        const data = await response.json();
+        return data.files.map((file: any) => ({
+            id: file.id,
+            name: file.name
+        }));
+    } catch (error) {
+        console.error('Error fetching sheets:', error);
+        return [];
+    }
 }
 
 export function ModelSettingsDialog({
@@ -71,6 +103,9 @@ export function ModelSettingsDialog({
     const [connectionFieldValues, setConnectionFieldValues] = useState<Record<string, string>>({});
     const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [sheets, setSheets] = useState<GoogleSheet[]>([]);
+    const [loadingSheets, setLoadingSheets] = useState(false);
+    const [selectedSheet, setSelectedSheet] = useState<GoogleSheet | null>(null);
 
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
@@ -140,6 +175,53 @@ export function ModelSettingsDialog({
         fetchStarterPrompts();
     }, [id, refreshKey]);
 
+    useEffect(() => {
+        const loadSheets = async () => {
+            if (selectedConnectionId && model.o_auth) {
+                setLoadingSheets(true);
+                try {
+                    const currentConnection = availableConnections.find(
+                        conn => conn.id === selectedConnectionId
+                    );
+                    
+                    if (currentConnection?.parsedConnectionKeys) {
+                        const accessToken = currentConnection.parsedConnectionKeys.find(
+                            pair => pair.key === 'access_token'
+                        )?.value;
+                        
+                        if (accessToken) {
+                            const sheetsList = await fetchGoogleSheets(accessToken);
+                            setSheets(sheetsList);
+                            
+                            // Set selected sheet if one is already saved
+                            const savedSheetId = currentConnection.parsedConnectionKeys.find(
+                                pair => pair.key === 'sheet_id'
+                            )?.value;
+                            
+                            if (savedSheetId) {
+                                const savedSheet = sheetsList.find(s => s.id === savedSheetId);
+                                if (savedSheet) {
+                                    setSelectedSheet(savedSheet);
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading sheets:', error);
+                    toast({
+                        title: "Error",
+                        description: "Failed to load Google Sheets",
+                        variant: "destructive",
+                    });
+                } finally {
+                    setLoadingSheets(false);
+                }
+            }
+        };
+        
+        loadSheets();
+    }, [selectedConnectionId, model.o_auth, availableConnections]);
+
     const handleConnectionChange = (value: string) => {
         const selectedConn = availableConnections.find(
             conn => conn.id === parseInt(value)
@@ -197,6 +279,126 @@ export function ModelSettingsDialog({
                 description: "Failed to delete prompt.",
                 variant: "destructive"
             });
+        }
+    };
+
+    const handleSheetChange = async (sheetId: string) => {
+        const selected = sheets.find(s => s.id === sheetId);
+        if (selected && selectedConnectionId) {
+            try {
+                const currentConnection = availableConnections.find(
+                    conn => conn.id === selectedConnectionId
+                );
+                
+                if (currentConnection?.parsedConnectionKeys) {
+                    // Create new connection keys array with updated sheet information
+                    let updatedKeys = currentConnection.parsedConnectionKeys.map(pair => 
+                        `${pair.key}=${pair.value}`
+                    );
+
+                    // Remove existing sheet entries if they exist
+                    updatedKeys = updatedKeys.filter(key => 
+                        !key.startsWith('sheet_id=') && 
+                        !key.startsWith('sheet_name=') &&
+                        !key.startsWith('sheet_tab=')
+                    );
+
+                    // Add new sheet entries
+                    updatedKeys.push(`sheet_id=${selected.id}`);
+                    updatedKeys.push(`sheet_name=${selected.name}`);
+
+                    // Format as PostgreSQL array
+                    const { error } = await updateUserConnection(
+                        selectedConnectionId,
+                        `{${updatedKeys.map(key => `"${key}"`).join(',')}}`,
+                        undefined
+                    );
+                    
+                    if (error) throw error;
+
+                    // Update the connection field values
+                    const values = Object.fromEntries(
+                        updatedKeys.map(key => {
+                            const [k, v] = key.split('=');
+                            return [k, v];
+                        })
+                    );
+                    setConnectionFieldValues(values);
+                    onConnectionKeysChange({
+                        ...values,
+                        connection_id: selectedConnectionId
+                    });
+                    
+                    toast({
+                        title: "Success",
+                        description: "Sheet selection updated successfully",
+                    });
+                }
+            } catch (error) {
+                console.error('Error updating sheet selection:', error);
+                toast({
+                    title: "Error",
+                    description: "Failed to update sheet selection",
+                    variant: "destructive",
+                });
+            }
+        }
+    };
+
+    const handleTabChange = async (tab: string) => {
+        if (selectedConnectionId) {
+            try {
+                const currentConnection = availableConnections.find(
+                    conn => conn.id === selectedConnectionId
+                );
+                
+                if (currentConnection?.parsedConnectionKeys) {
+                    // Create new connection keys array with updated tab information
+                    let updatedKeys = currentConnection.parsedConnectionKeys.map(pair => 
+                        `${pair.key}=${pair.value}`
+                    );
+
+                    // Remove existing tab entry if it exists
+                    updatedKeys = updatedKeys.filter(key => !key.startsWith('sheet_tab='));
+
+                    // Add new tab entry
+                    updatedKeys.push(`sheet_tab=${tab}`);
+
+                    // Format as PostgreSQL array
+                    const { error } = await updateUserConnection(
+                        selectedConnectionId,
+                        `{${updatedKeys.map(key => `"${key}"`).join(',')}}`,
+                        undefined
+                    );
+                    
+                    if (error) throw error;
+
+                    // Update the connection field values
+                    const values = Object.fromEntries(
+                        updatedKeys.map(key => {
+                            const [k, v] = key.split('=');
+                            return [k, v];
+                        })
+                    );
+                    setConnectionFieldValues(values);
+                    onConnectionKeysChange({
+                        ...values,
+                        connection_id: selectedConnectionId
+                    });
+                    
+                    toast({
+                        title: "Success",
+                        description: "Sheet tab updated successfully",
+                    });
+                }
+            } catch (error) {
+                console.error('Error updating sheet tab:', error);
+                toast({
+                    title: "Error",
+                    description: "Failed to update sheet tab",
+                    variant: "destructive",
+                });
+            }
         }
     };
 
@@ -286,6 +488,34 @@ export function ModelSettingsDialog({
                                                 </FormItem>
                                             )}
                                         />
+                                        {model.o_auth && selectedConnectionId && (
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <FormLabel className="text-base font-semibold">Google Sheet Settings</FormLabel>
+                                                </div>
+                                                <div className="rounded-lg border bg-card p-4 space-y-4">
+                                                    <SheetSettingsDialog
+                                                        modelId={model.id}
+                                                        sheets={sheets}
+                                                        selectedSheetId={connectionKeys?.sheet_id}
+                                                        selectedTab={connectionKeys?.sheet_tab}
+                                                        accessToken={connectionKeys?.access_token}
+                                                        onSheetChange={handleSheetChange}
+                                                        onTabChange={handleTabChange}
+                                                        connectionId={selectedConnectionId}
+                                                    />
+                                                    {connectionKeys?.sheet_id && (
+                                                        <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                                                            <Info className="h-4 w-4 flex-shrink-0" />
+                                                            <span>
+                                                                Current sheet: {connectionKeys.sheet_name || connectionKeys.sheet_id}
+                                                                {connectionKeys.sheet_tab && ` (Tab: ${connectionKeys.sheet_tab})`}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground bg-muted/50 rounded-md p-2">
                                             <Info className="h-4 w-4 flex-shrink-0" />
                                             <span>
@@ -304,192 +534,37 @@ export function ModelSettingsDialog({
                                     transition={{ duration: 0.2 }}
                                     className="space-y-4"
                                 >
-                                    {model.is_auth ? (
-                                        <>
-                                            <FormField
-                                                control={form.control}
-                                                name="user_connection_id"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-4">
-                                                        <div className="flex items-center justify-between">
-                                                            <FormLabel className="text-base font-semibold">Connection Configuration</FormLabel>
-                                                        </div>
-                                                        <div className="rounded-lg border bg-card p-4 space-y-4">
-                                                            <div className="space-y-2">
-                                                                <Label className="text-sm font-medium">Select Connection</Label>
-                                                                <Select
-                                                                    value={selectedConnectionId?.toString() || ""}
-                                                                    onValueChange={handleConnectionChange}
-                                                                >
-                                                                    <SelectTrigger className="w-full">
-                                                                        <SelectValue placeholder="Choose a connection to configure this agent" />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent>
-                                                                        {availableConnections.map((conn) => (
-                                                                            <SelectItem 
-                                                                                key={conn.id} 
-                                                                                value={conn.id.toString()}
-                                                                            >
-                                                                                <div className="flex items-center gap-2">
-                                                                                    {conn.id === selectedConnectionId && (
-                                                                                        <Check className="h-4 w-4 text-green-500" />
-                                                                                    )}
-                                                                                    {conn.connection_name}
-                                                                                </div>
-                                                                            </SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            </div>
-                                                        </div>
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <FormLabel className="text-base font-semibold">Connection Status</FormLabel>
-                                                    <div className="flex items-center gap-2">
-                                                        {selectedConnectionId && (
-                                                            <>
-                                                                <div className="rounded-full bg-green-50 dark:bg-green-900/20 px-3 py-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-2">
-                                                                    <Check className="h-3 w-3" />
-                                                                    Active Connection
-                                                                </div>
-                                                                {selectedConnectionId && (
-                                                                    <EditConnectionDialog 
-                                                                        connection={availableConnections.find(conn => conn.id === selectedConnectionId)!}
-                                                                        onSave={async (updatedConnection) => {
-                                                                            try {
-                                                                                // Update the connection in the database
-                                                                                const { data: updatedData, error } = await updateUserConnection(
-                                                                                    selectedConnectionId!,
-                                                                                    updatedConnection.connection_key,
-                                                                                    updatedConnection.connection_name
-                                                                                );
-                                                                                
-                                                                                if (error) throw error;
-
-                                                                                // Refresh connections after the connection is updated
-                                                                                const supabase = createClient();
-                                                                                const { data: { user } } = await supabase.auth.getUser();
-                                                                                if (!user) return;
-                                                                                
-                                                                                const { data: connections } = await getUserConnections(user.id);
-                                                                                if (connections) {
-                                                                                    const appConnections = connections.filter(conn => conn.app_id === model.app_id);
-                                                                                    setAvailableConnections(appConnections);
-                                                                                    
-                                                                                    // Find and update the current connection values
-                                                                                    const updatedConn = appConnections.find(conn => conn.id === selectedConnectionId);
-                                                                                    if (updatedConn?.parsedConnectionKeys) {
-                                                                                        const values = Object.fromEntries(
-                                                                                            updatedConn.parsedConnectionKeys.map((pair: { key: string; value: string }) => [pair.key, pair.value])
-                                                                                        );
-                                                                                        setConnectionFieldValues(values);
-                                                                                        onConnectionKeysChange({
-                                                                                            ...values,
-                                                                                            connection_id: updatedConn.id
-                                                                                        });
-                                                                                    }
-                                                                                }
-                                                                            } catch (error) {
-                                                                                console.error('Error updating connection:', error);
-                                                                                toast({
-                                                                                    title: "Error",
-                                                                                    description: "Failed to update connection. Please try again.",
-                                                                                    variant: "destructive",
-                                                                                });
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-lg border bg-card p-4 space-y-4">
-                                                    {selectedConnectionId ? (
-                                                        <div className="space-y-3">
-                                                            {model.fields?.map((fieldName, index) => (
-                                                                <motion.div
-                                                                    key={index}
-                                                                    initial={{ opacity: 0, x: -10 }}
-                                                                    animate={{ opacity: 1, x: 0 }}
-                                                                    transition={{ delay: index * 0.1 }}
-                                                                >
-                                                                    <div className="flex items-center justify-between mb-1.5">
-                                                                        <Label className="text-sm font-medium flex items-center gap-2">
-                                                                            <Key className="h-4 w-4 text-muted-foreground" />
-                                                                            {fieldName}
-                                                                        </Label>
-                                                                        <div className="text-xs text-muted-foreground">
-                                                                            Managed via Connections
-                                                                        </div>
-                                                                    </div>
-                                                                    <div
-                                                                        className="relative rounded-md border bg-muted/30 shadow-sm cursor-not-allowed"
-                                                                        title="This value is managed through the Connections page"
-                                                                    >
-                                                                        <div className="flex items-center">
-                                                                            <div className="w-full px-3 py-2 text-sm">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <Check className="h-4 w-4 text-green-500" />
-                                                                                    <span className="font-medium text-muted-foreground">
-                                                                                        ••••••••••••
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="border-l px-3 py-2">
-                                                                                <Lock className="h-4 w-4 text-muted-foreground" />
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </motion.div>
-                                                            ))}
-                                                            <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground bg-muted/50 rounded-md p-2">
-                                                                <Info className="h-4 w-4 flex-shrink-0" />
-                                                                <span>
-                                                                    These values are managed through the Connections page.
-                                                                    To modify them, please visit the{" "}
-                                                                    <Link href="/protected/connections" className="text-blue-500 hover:underline">
-                                                                        Connections
-                                                                    </Link>
-                                                                    {" "}section.
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <motion.div
-                                                            initial={{ opacity: 0, y: 5 }}
-                                                            animate={{ opacity: 1, y: 0 }}
-                                                            className="flex flex-col items-center justify-center py-6 text-center space-y-4"
+                                    <div className="flex items-center justify-between">
+                                        <FormLabel className="text-base font-semibold">Connection Configuration</FormLabel>
+                                    </div>
+                                    <div className="rounded-lg border bg-card p-4 space-y-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-sm font-medium">Select Connection</Label>
+                                            <Select
+                                                value={selectedConnectionId?.toString() || ""}
+                                                onValueChange={handleConnectionChange}
+                                            >
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue placeholder="Choose a connection to configure this agent" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {availableConnections.map((conn) => (
+                                                        <SelectItem 
+                                                            key={conn.id} 
+                                                            value={conn.id.toString()}
                                                         >
-                                                            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                                                                <Settings className="h-6 w-6 text-muted-foreground" />
+                                                            <div className="flex items-center gap-2">
+                                                                {conn.id === selectedConnectionId && (
+                                                                    <Check className="h-4 w-4 text-green-500" />
+                                                                )}
+                                                                {conn.connection_name}
                                                             </div>
-                                                            <div className="space-y-2">
-                                                                <h3 className="font-semibold">No Connection Selected</h3>
-                                                                <p className="text-sm text-muted-foreground max-w-sm">
-                                                                    Select a connection above to configure this agent's authentication settings
-                                                                </p>
-                                                            </div>
-                                                            <Link href="/protected/connections">
-                                                                Manage Connections
-                                                            </Link>
-                                                        </motion.div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <motion.div
-                                            initial={{ opacity: 0, scale: 0.95 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            className="text-center p-4 text-muted-foreground"
-                                        >
-                                            This agent does not require any connection settings.
-                                        </motion.div>
-                                    )}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
                                 </motion.div>
                             </TabsContent>
 
