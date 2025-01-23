@@ -187,32 +187,46 @@ export async function updateUserConnection(
   
   const updateData: Partial<Connection> = {};
   
+  // Get current connection to merge with existing keys
+  const { data: currentConnection } = await supabase
+    .from('user_connection')
+    .select('connection_key')
+    .eq('id', connectionId)
+    .single();
+
+  let currentKeys = currentConnection?.connection_key ? 
+    parseConnectionKeyString(currentConnection.connection_key) : 
+    [];
+
   if (connectionKey !== undefined) {
     updateData.connection_key = connectionKey;
+    currentKeys = parseConnectionKeyString(connectionKey);
   }
+
   if (connectionName !== undefined) {
     updateData.connection_name = connectionName.trim();
   }
-  if (sheetId !== undefined) {
-    updateData.sheet_id = sheetId;
-  }
-  if (sheetName !== undefined) {
-    updateData.sheet_name = sheetName;
-  }
-  if (sheetTab !== undefined) {
-    // Add sheet_tab to connection_key if it exists
-    const currentKeys = updateData.connection_key ? 
-      parseConnectionKeyString(updateData.connection_key) : 
-      [];
-    
-    // Remove existing sheet_tab if any
-    const filteredKeys = currentKeys.filter(pair => pair.key !== 'sheet_tab');
-    
-    // Add new sheet_tab
-    filteredKeys.push({ key: 'sheet_tab', value: sheetTab });
-    
+
+  // Update sheet-related fields
+  if (sheetId !== undefined || sheetName !== undefined || sheetTab !== undefined) {
+    // Remove existing sheet-related keys
+    currentKeys = currentKeys.filter(pair => 
+      !['sheet_id', 'sheet_name', 'sheet_tab'].includes(pair.key)
+    );
+
+    // Add new sheet-related keys
+    if (sheetId) {
+      currentKeys.push({ key: 'sheet_id', value: sheetId });
+    }
+    if (sheetName) {
+      currentKeys.push({ key: 'sheet_name', value: sheetName });
+    }
+    if (sheetTab) {
+      currentKeys.push({ key: 'sheet_tab', value: sheetTab });
+    }
+
     // Convert back to PostgreSQL array format
-    updateData.connection_key = `{${filteredKeys.map(pair => 
+    updateData.connection_key = `{${currentKeys.map(pair => 
       `"${pair.key}=${pair.value}"`
     ).join(',')}}`;
   }

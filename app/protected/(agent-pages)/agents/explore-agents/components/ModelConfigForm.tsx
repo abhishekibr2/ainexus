@@ -43,9 +43,15 @@ interface ModelConfigFormProps {
     model: Model;
     onSubmit: (data: ModelConfigValues) => void;
     onCancel: () => void;
+    handleOAuthLogin?: (provider: string, configData: any) => Promise<void>;
 }
 
-export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmit, onCancel }) => {
+export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ 
+    model, 
+    onSubmit, 
+    onCancel,
+    handleOAuthLogin 
+}) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showOverrides, setShowOverrides] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -212,13 +218,19 @@ export const ModelConfigForm: React.FC<ModelConfigFormProps> = ({ model, onSubmi
     const onFormSubmit = async (data: ModelConfigValues) => {
         setIsSubmitting(true);
         try {
-            await onSubmit({
-                ...data,
-                auth: model.is_auth && !model.o_auth ? {
-                    ...data.auth,
-                    user_connection_id: selectedConnectionId || undefined
-                } : undefined
-            });
+            if (model.o_auth) {
+                // For OAuth models, initiate OAuth flow with config data
+                await handleOAuthLogin!(model.provider!, data);
+            } else {
+                // For non-OAuth models, proceed with normal submission
+                await onSubmit({
+                    ...data,
+                    auth: model.is_auth ? {
+                        ...data.auth,
+                        user_connection_id: selectedConnectionId || undefined
+                    } : undefined
+                });
+            }
         } finally {
             setIsSubmitting(false);
         }

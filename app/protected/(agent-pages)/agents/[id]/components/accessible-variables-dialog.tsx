@@ -32,6 +32,8 @@ export function AccessibleVariablesDialog({
 }: AccessibleVariablesDialogProps) {
     const [open, setOpen] = useState(false);
     const [timezone, setTimezone] = useState<string | null>(null);
+    const [localConnectionKeys, setLocalConnectionKeys] = useState(connectionKeys);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
         const fetchTimezone = async () => {
@@ -41,8 +43,22 @@ export function AccessibleVariablesDialog({
         fetchTimezone()
     }, [user])
 
+    // Update local state when connectionKeys change or dialog opens
+    useEffect(() => {
+        console.log('Connection keys updated:', connectionKeys);
+        setLocalConnectionKeys(connectionKeys);
+    }, [connectionKeys, open, refreshKey]);
+
+    const handleOpenChange = (newOpen: boolean) => {
+        setOpen(newOpen);
+        if (newOpen) {
+            // Refresh data when dialog opens
+            setRefreshKey(prev => prev + 1);
+        }
+    };
+
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
                     <Code2 className="h-4 w-4 mr-2" />
@@ -86,26 +102,35 @@ export function AccessibleVariablesDialog({
                                 <div className="grid gap-2">
                                     {model.fields.map((field, index) => (
                                         <VariableItem 
-                                            key={index}
+                                            key={`${field}-${refreshKey}`}
                                             label={`vars.${field}`}
-                                            value={connectionKeys?.[field]}
+                                            value={localConnectionKeys?.[field]}
                                         />
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {model.o_auth && connectionKeys?.sheet_id && (
+                        {model.o_auth && localConnectionKeys?.sheet_id && (
                             <div className="space-y-4">
                                 <h4 className="text-sm font-medium">Google Sheet Variables</h4>
                                 <div className="grid gap-2">
                                     <VariableItem 
+                                        key={`sheet-id-${refreshKey}`}
                                         label="vars.sheet_id"
-                                        value={connectionKeys.sheet_id}
+                                        value={localConnectionKeys.sheet_id}
                                     />
+                                    {localConnectionKeys.sheet_name && (
+                                        <VariableItem 
+                                            key={`sheet-name-${refreshKey}`}
+                                            label="vars.sheet_name"
+                                            value={localConnectionKeys.sheet_name}
+                                        />
+                                    )}
                                     <VariableItem 
+                                        key={`sheet-tab-${refreshKey}`}
                                         label="vars.sheet_tab"
-                                        value={connectionKeys.sheet_tab}
+                                        value={localConnectionKeys.sheet_tab}
                                     />
                                 </div>
                             </div>

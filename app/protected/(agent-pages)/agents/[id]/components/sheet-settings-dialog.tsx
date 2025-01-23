@@ -63,59 +63,103 @@ export function SheetSettingsDialog({
     const [open, setOpen] = useState(false);
     const [sheetTabs, setSheetTabs] = useState<SheetTab[]>([]);
     const [isLoadingTabs, setIsLoadingTabs] = useState(false);
-    const [currentSheetId, setCurrentSheetId] = useState(selectedSheetId);
-    const [currentTab, setCurrentTab] = useState(selectedTab);
+    const [currentSheetId, setCurrentSheetId] = useState<string | undefined>(selectedSheetId);
+    const [currentTab, setCurrentTab] = useState<string | undefined>(selectedTab);
+    const [isSaving, setIsSaving] = useState(false);
+
+    console.log('SheetSettingsDialog render:', {
+        selectedSheetId,
+        currentSheetId,
+        selectedTab,
+        currentTab,
+        sheets: sheets.length
+    });
+
+    // Update current values when props change
+    useEffect(() => {
+        console.log('Props changed:', { selectedSheetId, selectedTab });
+        setCurrentSheetId(selectedSheetId);
+        setCurrentTab(selectedTab);
+    }, [selectedSheetId, selectedTab]);
 
     useEffect(() => {
         if (currentSheetId && accessToken && open) {
+            console.log('Fetching tabs for sheet:', currentSheetId);
             setIsLoadingTabs(true);
             fetchSheetTabs(currentSheetId, accessToken)
                 .then(tabs => {
+                    console.log('Fetched tabs:', tabs);
                     setSheetTabs(tabs);
+                    // Only set default tab if no tab is selected AND there are tabs available
                     if (!currentTab && tabs.length > 0) {
                         const firstTab = tabs[0].title;
+                        console.log('Setting default tab:', firstTab);
                         setCurrentTab(firstTab);
-                        onTabChange(firstTab);
                     }
                 })
                 .finally(() => {
                     setIsLoadingTabs(false);
                 });
         }
-    }, [currentSheetId, accessToken, open]);
+    }, [currentSheetId, accessToken, open, currentTab]);
 
     const handleSheetChange = (sheetId: string) => {
+        console.log('handleSheetChange:', { sheetId, currentSheetId });
         setCurrentSheetId(sheetId);
-        onSheetChange(sheetId);
+        // Reset tab when changing sheets
         setCurrentTab(undefined);
         setSheetTabs([]);
     };
 
-    const handleTabChange = async (tab: string) => {
-        if (!connectionId) return;
+    const handleTabChange = (tab: string) => {
+        console.log('handleTabChange:', { tab, currentTab });
+        setCurrentTab(tab);
+    };
+
+    const handleSave = async () => {
+        if (!connectionId || !currentSheetId || !currentTab) {
+            console.log('Missing required data:', { connectionId, currentSheetId, currentTab });
+            return;
+        }
+        setIsSaving(true);
 
         try {
+            const selectedSheet = sheets.find(s => s.id === currentSheetId);
+            if (!selectedSheet) {
+                console.error('Selected sheet not found:', currentSheetId);
+                throw new Error('Selected sheet not found');
+            }
+
+            // Update both sheet ID and tab in one call
             const { error } = await updateUserConnection(
                 connectionId,
                 undefined,
                 undefined,
-                undefined,
-                undefined,
-                tab
+                currentSheetId,
+                selectedSheet.name,
+                currentTab
             );
             
             if (error) throw error;
-
-            setCurrentTab(tab);
-            onTabChange(tab);
             
+            // Notify parent components
+            onSheetChange(currentSheetId);
+            onTabChange(currentTab);
+            
+            toast({
+                title: "Success",
+                description: "Sheet settings updated successfully",
+            });
+            setOpen(false);
         } catch (error) {
-            console.error('Error updating sheet tab:', error);
+            console.error('Error updating sheet settings:', error);
             toast({
                 title: "Error",
-                description: "Failed to update sheet tab",
+                description: "Failed to update sheet settings",
                 variant: "destructive",
             });
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -138,11 +182,14 @@ export function SheetSettingsDialog({
                     <div className="grid gap-2">
                         <Label htmlFor="sheet">Google Sheet</Label>
                         <Select
+                            defaultValue={selectedSheetId}
                             value={currentSheetId}
                             onValueChange={handleSheetChange}
                         >
                             <SelectTrigger id="sheet">
-                                <SelectValue placeholder="Select a sheet" />
+                                <SelectValue>
+                                    {sheets.find(s => s.id === currentSheetId)?.name || "Select a sheet"}
+                                </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                                 {sheets.map((sheet) => (
@@ -158,6 +205,7 @@ export function SheetSettingsDialog({
                         <div className="grid gap-2">
                             <Label htmlFor="tab">Sheet Tab</Label>
                             <Select
+                                defaultValue={selectedTab}
                                 value={currentTab}
                                 onValueChange={handleTabChange}
                                 disabled={isLoadingTabs}
@@ -169,7 +217,9 @@ export function SheetSettingsDialog({
                                             <span>Loading tabs...</span>
                                         </div>
                                     ) : (
-                                        <SelectValue placeholder="Select a tab" />
+                                        <SelectValue>
+                                            {currentTab || "Select a tab"}
+                                        </SelectValue>
                                     )}
                                 </SelectTrigger>
                                 <SelectContent>
@@ -184,8 +234,18 @@ export function SheetSettingsDialog({
                     )}
                 </div>
                 <DialogFooter>
-                    <Button onClick={() => setOpen(false)}>
-                        Done
+                    <Button 
+                        onClick={handleSave} 
+                        disabled={isLoadingTabs || isSaving || !currentSheetId || !currentTab}
+                    >
+                        {isSaving ? (
+                            <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Saving...
+                            </>
+                        ) : (
+                            'Save Changes'
+                        )}
                     </Button>
                 </DialogFooter>
             </DialogContent>
