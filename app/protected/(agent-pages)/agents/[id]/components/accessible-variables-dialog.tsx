@@ -45,7 +45,6 @@ export function AccessibleVariablesDialog({
 
     // Update local state when connectionKeys change or dialog opens
     useEffect(() => {
-        console.log('Connection keys updated:', connectionKeys);
         setLocalConnectionKeys(connectionKeys);
     }, [connectionKeys, open, refreshKey]);
 

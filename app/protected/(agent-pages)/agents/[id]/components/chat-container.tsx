@@ -116,7 +116,7 @@ export function ChatContainer({
             // For existing chat, append new messages
             setMessages(prev => [...prev, userMessage, assistantMessage]);
         }
-
+        const vars = connectionKeys;
         try {
             const client = new FlowiseClient({
                 baseUrl: 'https://flowise.ibrcloud.com',

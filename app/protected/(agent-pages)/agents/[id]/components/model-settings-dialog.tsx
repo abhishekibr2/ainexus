@@ -288,7 +288,6 @@ export function ModelSettingsDialog({
                 sheet_id: sheetId,
                 sheet_name: selectedSheet.name
             };
-            console.log('Updating connection field values:', updatedValues);
             setConnectionFieldValues(updatedValues);
             onConnectionKeysChange({
                 ...updatedValues,
@@ -302,7 +301,6 @@ export function ModelSettingsDialog({
             ...connectionFieldValues,
             sheet_tab: tab
         };
-        console.log('Updating tab in connection field values:', updatedValues);
         setConnectionFieldValues(updatedValues);
         onConnectionKeysChange({
             ...updatedValues,
