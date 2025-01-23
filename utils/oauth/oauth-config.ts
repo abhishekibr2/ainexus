@@ -34,10 +34,15 @@ const GOOGLE_OAUTH_CONFIG: OAuthConfig = {
 
 const SCOPES = {
     [OAUTH_PROVIDERS.GOOGLE_DRIVE]: [
-        'https://www.googleapis.com/auth/drive.file',  // Per-file access to files created or opened by the app
-        'https://www.googleapis.com/auth/drive.appdata', // Access to application-specific data
-        'https://www.googleapis.com/auth/userinfo.profile', // Basic profile info
-        'https://www.googleapis.com/auth/userinfo.email', // Email address
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive.appdata',
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/drive.metadata.readonly',
+        'https://www.googleapis.com/auth/drive',
+        'https://www.googleapis.com/auth/drive.appdata',
+        'https://www.googleapis.com/auth/spreadsheets',
     ],
 }
 
