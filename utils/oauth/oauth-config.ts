@@ -28,7 +28,7 @@ const GOOGLE_OAUTH_CONFIG: OAuthConfig = {
     auth: {
         tokenHost: 'https://oauth2.googleapis.com',
         tokenPath: '/token',
-        authorizePath: 'https://accounts.google.com/o/oauth2/v2/auth'
+        authorizePath: 'https://accounts.google.com/o/oauth2/v2/auth',
     }
 }
 
@@ -66,4 +66,25 @@ export function getAuthorizationUrl(provider: OAuthProvider, state?: string): st
         prompt: 'consent',
         state,
     })
+}
+
+export function isTokenExpired(expiresIn: number, tokenTimestamp: string): boolean {
+    const expirationTime = new Date(tokenTimestamp).getTime() + (expiresIn * 1000);
+    return Date.now() >= expirationTime;
+}
+
+export async function refreshAccessToken(provider: OAuthProvider, refreshToken: string): Promise<any> {
+    const client = getOAuthClient(provider)
+    
+    try {
+        const result = await client.getToken({
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token',
+        });
+
+        return result.token;
+    } catch (error) {
+        console.error('Error refreshing access token:', error)
+        throw error
+    }
 } 

@@ -20,8 +20,10 @@ declare module 'simple-oauth2' {
     }
 
     export interface TokenConfig {
-        code: string;
-        redirect_uri: string;
+        code?: string;
+        redirect_uri?: string;
+        refresh_token?: string;
+        grant_type?: string;
     }
 
     export interface AccessToken {

@@ -59,7 +59,7 @@ export default function DashboardPage() {
 
       <div className="text-center">
         <Link href="/protected/agents/explore-agents">
-          <Button size="lg" className="text-white font-bold py-2 px-4 rounded">
+          <Button size="lg" className="font-bold py-2 px-4 rounded">
             Explore AI Agents
           </Button>
         </Link>
