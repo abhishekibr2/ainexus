@@ -143,7 +143,7 @@ export function ChatContainer({
             const client = new FlowiseClient({
                 baseUrl: 'https://flowise.ibrcloud.com',
             });
-            const sessionId = userAssignedModelId;
+            const sessionId = userAssignedModelId + currentChatId;
             const overrideConfig = typeof model.override_config === 'string'
                 ? JSON.parse(model.override_config || '{}')
                 : model.override_config || {};
@@ -291,7 +291,7 @@ export function ChatContainer({
                 <StarterPrompts
                     onPromptSelect={(prompt) => handleSubmit(prompt)}
                     isTyping={isTyping}
-                    userAssignedModelId={userAssignedModelId}
+                    model={model}
                 />
             )}
 
