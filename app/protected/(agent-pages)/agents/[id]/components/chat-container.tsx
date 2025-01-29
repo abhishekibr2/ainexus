@@ -67,6 +67,28 @@ export function ChatContainer({
     const router = useRouter();
     const [showStarterPrompts, setShowStarterPrompts] = useState(true);
 
+    // Function to recursively process and replace placeholders in overrideConfig
+    const processOverrideConfig = (config: any, variables: Record<string, any>): any => {
+        if (typeof config === 'string') {
+            // If the value is a string that matches a variable path (e.g., "user.id")
+            return config.split('.').reduce((obj, key) => obj?.[key], variables) ?? config;
+        }
+        
+        if (Array.isArray(config)) {
+            return config.map(item => processOverrideConfig(item, variables));
+        }
+        
+        if (typeof config === 'object' && config !== null) {
+            const processed: Record<string, any> = {};
+            for (const [key, value] of Object.entries(config)) {
+                processed[key] = processOverrideConfig(value, variables);
+            }
+            return processed;
+        }
+        
+        return config;
+    };
+
     const handleSubmit = async (message: string) => {
         if (!model || isTyping) return;
 
@@ -125,12 +147,26 @@ export function ChatContainer({
             const overrideConfig = typeof model.override_config === 'string'
                 ? JSON.parse(model.override_config || '{}')
                 : model.override_config || {};
+
+            // Process overrideConfig with available variables
+            const availableVariables = {
+                user,
+                connection: connectionKeys,
+                timezone,
+                sessionId,
+                vars: connectionKeys, // Including vars for backward compatibility
+                // Add any other available variables here that you want to support
+            };
+            
+            const processedOverrideConfig = processOverrideConfig(overrideConfig, availableVariables);
+            console.log('Processed override config:', processedOverrideConfig);
+            
             setIsStreaming(true);
             const prediction = await client.createPrediction({
                 chatflowId: model.chatflow_id,
                 question: message,
                 streaming: true,
-                overrideConfig: overrideConfig
+                overrideConfig: processedOverrideConfig
             });
 
             let content = '';
