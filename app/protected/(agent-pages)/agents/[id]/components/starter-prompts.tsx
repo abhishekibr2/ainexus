@@ -8,28 +8,65 @@ import { getStarterPrompts } from "@/utils/supabase/actions/user/starterPrompts"
 interface StarterPromptsProps {
     onPromptSelect: (prompt: string) => void;
     isTyping: boolean;
-    userAssignedModelId: string;
+    model: {
+        chatflow_id: string;
+    };
 }
 
-export function StarterPrompts({ onPromptSelect, isTyping, userAssignedModelId }: StarterPromptsProps) {
+interface FlowiseConfig {
+    starterPrompts: {
+        [key: string]: {
+            prompt: string;
+        };
+    };
+    uploads: {
+        isSpeechToTextEnabled: boolean;
+        isImageUploadAllowed: boolean;
+        isRAGFileUploadAllowed: boolean;
+        imgUploadSizeAndTypes: any[];
+        fileUploadSizeAndTypes: any[];
+    };
+}
+
+export function StarterPrompts({ onPromptSelect, isTyping, model }: StarterPromptsProps) {
     const [prompts, setPrompts] = useState<string[]>([]);
 
     useEffect(() => {
         const fetchPrompts = async () => {
             try {
-                const prompts = await getStarterPrompts(userAssignedModelId);
+                const prompts = await getStarterPrompts(model.chatflow_id);
                 if (prompts.length === 0) {
-                    // Fallback to default prompts if none are set
-                    setPrompts([
-                        "Can you explain what you can help me with?",
-                        "I'm new here. How should I get started?"
-                    ]);
+                    // Fetch from Flowise API if no prompts are set
+                    try {
+                        const response = await fetch(`https://flowise.ibrcloud.com/api/v1/public-chatbotConfig/${model.chatflow_id}`);
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch from Flowise API');
+                        }
+                        const data: FlowiseConfig = await response.json();
+                        if (data.starterPrompts && Object.keys(data.starterPrompts).length > 0) {
+                            // Convert the object structure to array of prompts
+                            const starterPromptsArray = Object.values(data.starterPrompts).map(item => item.prompt);
+                            setPrompts(starterPromptsArray);
+                        } else {
+                            // Fallback if no starter prompts in Flowise response
+                            setPrompts([
+                                "Can you explain what you can help me with?",
+                                "I'm new here. How should I get started?"
+                            ]);
+                        }
+                    } catch (flowiseError) {
+                        console.error('Error fetching from Flowise:', flowiseError);
+                        // Fallback if Flowise API fails
+                        setPrompts([
+                            "Can you explain what you can help me with?",
+                            "I'm new here. How should I get started?"
+                        ]);
+                    }
                 } else {
                     setPrompts(prompts);
                 }
             } catch (error) {
                 console.error('Error fetching prompts:', error);
-                // Fallback to default prompts if there's an error
                 setPrompts([
                     "Can you explain what you can help me with?",
                     "I'm new here. How should I get started?"
@@ -38,7 +75,7 @@ export function StarterPrompts({ onPromptSelect, isTyping, userAssignedModelId }
         };
 
         fetchPrompts();
-    }, [userAssignedModelId]);
+    }, [model.chatflow_id]);
 
     return (
         <div className="w-full max-w-4xl mx-auto px-4 mb-4">
