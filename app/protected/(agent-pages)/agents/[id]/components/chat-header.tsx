@@ -18,6 +18,7 @@ interface Model {
     o_auth: boolean;
     chatflow_id: string;
     override_config?: string;
+    user_connection_id: string;
 }
 
 interface ChatHeaderProps {
@@ -86,6 +87,7 @@ export function ChatHeader({
                         {isAdmin && <AccessibleVariablesDialog user={user} model={model} connectionKeys={connectionKeys} instruction={instruction} />}
                         <ModelSettingsDialog
                             model={model}
+                            user_connection_id={model.user_connection_id}
                             connectionKeys={connectionKeys}
                             onDelete={onDelete}
                             onSave={onSave}

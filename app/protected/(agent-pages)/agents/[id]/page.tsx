@@ -31,6 +31,7 @@ interface Model {
     app_id: number;
     fields?: string[];
     chatflow_id: string;
+    user_connection_id: string;
     o_auth: boolean;
 }
 
