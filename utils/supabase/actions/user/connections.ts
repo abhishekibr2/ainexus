@@ -173,6 +173,16 @@ export async function createUserConnection(
   return { data: connectionWithParsedKeys, error: null };
 }
 
+export async function updateGoogleDriveToken(connectionId: number, accessToken: string, refreshToken: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('user_connection')
+    .update({ access_token: accessToken, refresh_token: refreshToken })
+    .eq('id', connectionId)
+    .select()
+    .single();
+}
+
 export async function updateUserConnection(
   connectionId: number,
   connectionKey?: string,
@@ -184,9 +194,9 @@ export async function updateUserConnection(
   if (!connectionId) throw new Error('Connection ID is required');
 
   const supabase = createClient();
-  
+
   const updateData: Partial<Connection> = {};
-  
+
   // Get current connection to merge with existing keys
   const { data: currentConnection } = await supabase
     .from('user_connection')
@@ -194,8 +204,8 @@ export async function updateUserConnection(
     .eq('id', connectionId)
     .single();
 
-  let currentKeys = currentConnection?.connection_key ? 
-    parseConnectionKeyString(currentConnection.connection_key) : 
+  let currentKeys = currentConnection?.connection_key ?
+    parseConnectionKeyString(currentConnection.connection_key) :
     [];
 
   if (connectionKey !== undefined) {
@@ -210,7 +220,7 @@ export async function updateUserConnection(
   // Update sheet-related fields
   if (sheetId !== undefined || sheetName !== undefined || sheetTab !== undefined) {
     // Remove existing sheet-related keys
-    currentKeys = currentKeys.filter(pair => 
+    currentKeys = currentKeys.filter(pair =>
       !['sheet_id', 'sheet_name', 'sheet_tab'].includes(pair.key)
     );
 
@@ -226,7 +236,7 @@ export async function updateUserConnection(
     }
 
     // Convert back to PostgreSQL array format
-    updateData.connection_key = `{${currentKeys.map(pair => 
+    updateData.connection_key = `{${currentKeys.map(pair =>
       `"${pair.key}=${pair.value}"`
     ).join(',')}}`;
   }
@@ -253,8 +263,8 @@ export async function updateUserConnection(
   // Parse connection_key
   const connectionWithParsedKeys = data ? {
     ...data,
-    parsedConnectionKeys: data.connection_key ? 
-      parseConnectionKeyString(data.connection_key) : 
+    parsedConnectionKeys: data.connection_key ?
+      parseConnectionKeyString(data.connection_key) :
       []
   } : null;
 

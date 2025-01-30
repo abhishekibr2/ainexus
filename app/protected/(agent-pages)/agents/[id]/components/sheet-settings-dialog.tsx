@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { updateUserConnection } from "@/utils/supabase/actions/user/connections";
 import { useToast } from "@/hooks/use-toast";
+import { OAUTH_PROVIDERS, refreshAccessToken } from "@/utils/oauth/oauth-config";
 
 interface SheetTab {
     title: string;
@@ -35,6 +36,9 @@ async function fetchSheetTabs(sheetId: string, accessToken: string): Promise<She
         );
 
         if (!response.ok) {
+            if (response.status === 401) {
+                await refreshAccessToken(OAUTH_PROVIDERS.GOOGLE_DRIVE, accessToken);
+            }
             throw new Error('Failed to fetch sheet tabs');
         }
 

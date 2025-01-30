@@ -6,7 +6,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/utils/supabase/client";
-import { getUserConnections, Connection } from "@/utils/supabase/actions/user/connections";
+import { getUserConnections, Connection, updateGoogleDriveToken } from "@/utils/supabase/actions/user/connections";
 import { getUserAssignedModel } from "@/utils/supabase/actions/user/assignedAgents";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -24,6 +24,7 @@ import { EditConnectionDialog } from "@/app/protected/(agent-pages)/connections/
 import { updateUserConnection } from "@/utils/supabase/actions/user/connections";
 import { getStarterPrompts, removeStarterPrompt } from "@/utils/supabase/actions/user/starterPrompts";
 import { SheetSettingsDialog } from "./sheet-settings-dialog";
+import { OAUTH_PROVIDERS, refreshAccessToken } from "@/utils/oauth/oauth-config";
 
 const settingsFormSchema = z.object({
     name: z.string().optional(),
@@ -43,6 +44,7 @@ interface Model {
     app_id: number;
     fields?: string[];
     o_auth: boolean;
+    user_connection_id: string;
 }
 
 interface GoogleSheet {
@@ -59,9 +61,9 @@ interface ModelSettingsDialogProps {
     onConnectionKeysChange: (keys: any) => void;
 }
 
-async function fetchGoogleSheets(accessToken: string): Promise<GoogleSheet[]> {
+async function fetchGoogleSheets(accessToken: string, user_connection_id: string): Promise<GoogleSheet[]> {
     try {
-        const response = await fetch(
+        let response = await fetch(
             'https://www.googleapis.com/drive/v3/files?q=mimeType%3D%27application%2Fvnd.google-apps.spreadsheet%27',
             {
                 headers: {
@@ -69,8 +71,20 @@ async function fetchGoogleSheets(accessToken: string): Promise<GoogleSheet[]> {
                 }
             }
         );
-        
-        if (!response.ok) {
+        if (response.status === 401) {
+            const newAccessToken = await refreshAccessToken(OAUTH_PROVIDERS.GOOGLE_DRIVE, accessToken);
+            console.log("new access token: ", newAccessToken)
+            await updateGoogleDriveToken(parseInt(user_connection_id), newAccessToken.access_token, newAccessToken.refresh_token);
+            response = await fetch(
+                'https://www.googleapis.com/drive/v3/files?q=mimeType%3D%27application%2Fvnd.google-apps.spreadsheet%27',
+                {
+                    headers: {
+                        'Authorization': `Bearer ${newAccessToken}`
+                    }
+                }
+            );
+        }
+        else if (!response.ok) {
             throw new Error('Failed to fetch sheets');
         }
         
@@ -189,7 +203,7 @@ export function ModelSettingsDialog({
                         )?.value;
                         
                         if (accessToken) {
-                            const sheetsList = await fetchGoogleSheets(accessToken);
+                            const sheetsList = await fetchGoogleSheets(accessToken, currentConnection.id.toString());
                             setSheets(sheetsList);
                             
                             // Set selected sheet if one is already saved
