@@ -44,7 +44,6 @@ interface Model {
     app_id: number;
     fields?: string[];
     o_auth: boolean;
-    user_connection_id: string;
 }
 
 interface GoogleSheet {
@@ -54,6 +53,7 @@ interface GoogleSheet {
 
 interface ModelSettingsDialogProps {
     model: Model;
+    user_connection_id: string;
     connectionKeys: any;
     onDelete: () => Promise<void>;
     onSave: (settings: any) => Promise<void>;

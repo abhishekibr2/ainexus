@@ -17,6 +17,7 @@ interface Model {
     created_at: string;
     name: string;
     description: string;
+    user_connection_id: string;
     icon: string;
     is_auth: boolean;
     created_by: string;
