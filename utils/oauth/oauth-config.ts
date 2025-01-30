@@ -6,12 +6,13 @@ export const OAUTH_PROVIDERS = {
 
 export type OAuthProvider = typeof OAUTH_PROVIDERS[keyof typeof OAUTH_PROVIDERS]
 
+
 // Verify environment variables are set
-if (!process.env.GOOGLE_OAUTH_CLIENT_ID) {
-    throw new Error('GOOGLE_OAUTH_CLIENT_ID environment variable is not set')
+if (!process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID) {
+    throw new Error('NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID environment variable is not set')
 }
-if (!process.env.GOOGLE_OAUTH_CLIENT_SECRET) {
-    throw new Error('GOOGLE_OAUTH_CLIENT_SECRET environment variable is not set')
+if (!process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_SECRET) {
+    throw new Error('NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_SECRET environment variable is not set')
 }
 if (!process.env.NEXT_PUBLIC_SITE_URL) {
     throw new Error('NEXT_PUBLIC_SITE_URL environment variable is not set')
@@ -22,8 +23,8 @@ const REDIRECT_URI = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/oauth/callback`
 
 const GOOGLE_OAUTH_CONFIG: OAuthConfig = {
     client: {
-        id: process.env.GOOGLE_OAUTH_CLIENT_ID,
-        secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+        id: process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID,
+        secret: process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_SECRET,
     },
     auth: {
         tokenHost: 'https://oauth2.googleapis.com',
@@ -68,23 +69,35 @@ export function getAuthorizationUrl(provider: OAuthProvider, state?: string): st
     })
 }
 
-export function isTokenExpired(expiresIn: number, tokenTimestamp: string): boolean {
-    const expirationTime = new Date(tokenTimestamp).getTime() + (expiresIn * 1000);
-    return Date.now() >= expirationTime;
-}
-
 export async function refreshAccessToken(provider: OAuthProvider, refreshToken: string): Promise<any> {
-    const client = getOAuthClient(provider)
-    
+    if (provider !== OAUTH_PROVIDERS.GOOGLE_DRIVE) {
+        throw new Error(`Unsupported OAuth provider: ${provider}`)
+    }
+
     try {
-        const result = await client.getToken({
-            refresh_token: refreshToken,
-            grant_type: 'refresh_token',
+        const response = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                client_id: process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID!,
+                client_secret: process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_SECRET!,
+                refresh_token: refreshToken,
+                grant_type: 'refresh_token'
+            }).toString()
         });
 
-        return result.token;
+        if (!response.ok) {
+            const errorData = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorData}`);
+        }
+
+        const data = await response.json();
+        console.log('New Access Token:', data.access_token);
+        return data;
     } catch (error) {
-        console.error('Error refreshing access token:', error)
-        throw error
+        console.error('Error refreshing token:', error);
+        throw error;
     }
 } 

@@ -40,13 +40,13 @@ export async function createModel(data: ModelFormValues, userId: string) {
     const validatedData = modelFormSchema.omit({ id: true, created_at: true, created_by: true }).parse(data);
 
     // Always store the permission object with proper type and empty arrays for global
-    const permission = validatedData.permission?.type === 'global' 
+    const permission = validatedData.permission?.type === 'global'
         ? {
             type: 'global',
             restricted_to: [],
             restricted_users: [],
             restricted_workspaces: []
-        } 
+        }
         : validatedData.permission;
 
     const { error } = await supabase
@@ -57,7 +57,7 @@ export async function createModel(data: ModelFormValues, userId: string) {
             icon: validatedData.icon,
             is_auth: validatedData.is_auth,
             chatflow_id: validatedData.chatflow_id,
-            override_config: validatedData.override_config ? JSON.stringify(validatedData.override_config) : null,
+            override_config: validatedData.override_config ? JSON.stringify(validatedData.override_config) : JSON.stringify({ "sessionId": "{sessionId}" }),
             created_by: userId,
             app_id: validatedData.app_id,
             permission: permission
@@ -78,13 +78,13 @@ export async function updateModel(modelId: number, data: ModelFormValues, userId
     const validatedData = modelFormSchema.omit({ id: true, created_at: true, created_by: true }).parse(data);
 
     // Always store the permission object with proper type and empty arrays for global
-    const permission = validatedData.permission?.type === 'global' 
+    const permission = validatedData.permission?.type === 'global'
         ? {
             type: 'global',
             restricted_to: [],
             restricted_users: [],
             restricted_workspaces: []
-        } 
+        }
         : validatedData.permission;
 
     const { error } = await supabase

@@ -70,8 +70,15 @@ export function ChatContainer({
     // Function to recursively process and replace placeholders in overrideConfig
     const processOverrideConfig = (config: any, variables: Record<string, any>): any => {
         if (typeof config === 'string') {
-            // If the value is a string that matches a variable path (e.g., "user.id")
-            return config.split('.').reduce((obj, key) => obj?.[key], variables) ?? config;
+            // Check if the string is wrapped in curly braces
+            const match = config.match(/^{(.+)}$/);
+            if (match) {
+                // Extract the path from inside the curly braces
+                const path = match[1];
+                // Navigate the path through the variables object
+                return path.split('.').reduce((obj, key) => obj?.[key], variables) ?? config;
+            }
+            return config;
         }
         
         if (Array.isArray(config)) {
@@ -159,7 +166,6 @@ export function ChatContainer({
             };
             
             const processedOverrideConfig = processOverrideConfig(overrideConfig, availableVariables);
-            console.log('Processed override config:', processedOverrideConfig);
             
             setIsStreaming(true);
             const prediction = await client.createPrediction({

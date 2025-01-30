@@ -35,7 +35,7 @@ export function StarterPrompts({ onPromptSelect, isTyping, model }: StarterPromp
         const fetchPrompts = async () => {
             try {
                 const prompts = await getStarterPrompts(model.chatflow_id);
-                if (prompts.length === 0) {
+                if (prompts.length === 0 || prompts.length === undefined || prompts.length === null) {
                     // Fetch from Flowise API if no prompts are set
                     try {
                         const response = await fetch(`https://flowise.ibrcloud.com/api/v1/public-chatbotConfig/${model.chatflow_id}`);
@@ -65,7 +65,7 @@ export function StarterPrompts({ onPromptSelect, isTyping, model }: StarterPromp
                 } else {
                     setPrompts(prompts);
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error fetching prompts:', error);
                 setPrompts([
                     "Can you explain what you can help me with?",
