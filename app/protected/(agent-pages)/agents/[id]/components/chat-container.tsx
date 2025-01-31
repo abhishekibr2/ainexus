@@ -35,6 +35,7 @@ interface ChatContainerProps {
     userAssignedModelId: string;
     isAdmin: boolean;
     timezone: string;
+    connection_id: string;
     isFavorite: boolean;
     messages: ChatMessage[];
     setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
@@ -58,6 +59,7 @@ export function ChatContainer({
     onFavoriteToggle,
     onDelete,
     availableIcons,
+    connection_id,
 }: ChatContainerProps) {
 
     const [isTyping, setIsTyping] = useState(false);
@@ -162,6 +164,7 @@ export function ChatContainer({
                 connection: connectionKeys,
                 timezone,
                 sessionId,
+                connection_id,
                 vars: connectionKeys, // Including vars for backward compatibility
                 // Add any other available variables here that you want to support
             };

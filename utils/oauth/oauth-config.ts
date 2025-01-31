@@ -1,4 +1,5 @@
 import { AuthorizationCode, OAuthConfig } from 'simple-oauth2'
+import { updateGoogleDriveToken } from '../supabase/actions/user/connections'
 
 export const OAUTH_PROVIDERS = {
     GOOGLE_DRIVE: 'google_drive',
@@ -69,11 +70,10 @@ export function getAuthorizationUrl(provider: OAuthProvider, state?: string): st
     })
 }
 
-export async function refreshAccessToken(provider: OAuthProvider, refreshToken: string): Promise<any> {
+export async function refreshAccessToken(provider: OAuthProvider, refreshToken: string, connectionId: string): Promise<any> {
     if (provider !== OAUTH_PROVIDERS.GOOGLE_DRIVE) {
         throw new Error(`Unsupported OAuth provider: ${provider}`)
     }
-
     try {
         const response = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
@@ -92,10 +92,9 @@ export async function refreshAccessToken(provider: OAuthProvider, refreshToken: 
             const errorData = await response.text();
             throw new Error(`HTTP error! status: ${response.status}, message: ${errorData}`);
         }
-
         const data = await response.json();
-        console.log('New Access Token:', data.access_token);
-        return data;
+        updateGoogleDriveToken(parseInt(connectionId), data.access_token);
+        return data.access_token;
     } catch (error) {
         console.error('Error refreshing token:', error);
         throw error;

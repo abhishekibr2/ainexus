@@ -10,4 +10,12 @@ export const config: NextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/refresh-token',
+        destination: 'http://localhost:3001/api/refresh-token',
+      },
+    ]
+  },
 };

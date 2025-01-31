@@ -390,6 +390,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
             model={modelData.model}
             user={modelData.user}
             instruction={instruction}
+            connection_id={modelData.model.user_connection_id}
             timezone={modelData.timezone ?? ''}
             connectionKeys={modelData.connectionKeys}
             isAdmin={modelData.isAdmin}
