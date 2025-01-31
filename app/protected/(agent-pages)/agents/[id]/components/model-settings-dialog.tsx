@@ -72,9 +72,7 @@ async function fetchGoogleSheets(accessToken: string, user_connection_id: string
             }
         );
         if (response.status === 401) {
-            const newAccessToken = await refreshAccessToken(OAUTH_PROVIDERS.GOOGLE_DRIVE, accessToken);
-            console.log("new access token: ", newAccessToken)
-            await updateGoogleDriveToken(parseInt(user_connection_id), newAccessToken.access_token, newAccessToken.refresh_token);
+            const newAccessToken = await refreshAccessToken(OAUTH_PROVIDERS.GOOGLE_DRIVE, accessToken, user_connection_id);
             response = await fetch(
                 'https://www.googleapis.com/drive/v3/files?q=mimeType%3D%27application%2Fvnd.google-apps.spreadsheet%27',
                 {

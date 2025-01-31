@@ -173,14 +173,21 @@ export async function createUserConnection(
   return { data: connectionWithParsedKeys, error: null };
 }
 
-export async function updateGoogleDriveToken(connectionId: number, accessToken: string, refreshToken: string) {
+export async function updateGoogleDriveToken(connectionId: number, accessToken: string) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('user_connection')
-    .update({ access_token: accessToken, refresh_token: refreshToken })
+    .update({ access_token: accessToken })
     .eq('id', connectionId)
     .select()
     .single();
+
+  if (error) {
+    console.error('Error updating Google Drive token:', error);
+    return { data: null, error };
+  }
+
+  return { data: data, error: null };
 }
 
 export async function updateUserConnection(
