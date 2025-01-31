@@ -168,9 +168,8 @@ export function ChatContainer({
                 vars: connectionKeys, // Including vars for backward compatibility
                 // Add any other available variables here that you want to support
             };
-            
             const processedOverrideConfig = processOverrideConfig(overrideConfig, availableVariables);
-            
+            console.log(processedOverrideConfig)
             setIsStreaming(true);
             const prediction = await client.createPrediction({
                 chatflowId: model.chatflow_id,

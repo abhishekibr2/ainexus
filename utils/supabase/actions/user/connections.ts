@@ -174,10 +174,36 @@ export async function createUserConnection(
 }
 
 export async function updateGoogleDriveToken(connectionId: number, accessToken: string) {
+  if (!connectionId) throw new Error('Connection ID is required');
+  if (!accessToken) throw new Error('Access token is required');
+
   const supabase = createClient();
+
+  // Get current connection to merge with existing keys
+  const { data: currentConnection } = await supabase
+    .from('user_connection')
+    .select('connection_key')
+    .eq('id', connectionId)
+    .single();
+
+  let currentKeys = currentConnection?.connection_key ?
+    parseConnectionKeyString(currentConnection.connection_key) :
+    [];
+
+  // Remove existing access_token if present
+  currentKeys = currentKeys.filter(pair => pair.key !== 'access_token');
+
+  // Add new access_token
+  currentKeys.push({ key: 'access_token', value: accessToken });
+
+  // Convert back to PostgreSQL array format
+  const connection_key = `{${currentKeys.map(pair =>
+    `"${pair.key}=${pair.value}"`
+  ).join(',')}}`;
+
   const { data, error } = await supabase
     .from('user_connection')
-    .update({ access_token: accessToken })
+    .update({ connection_key })
     .eq('id', connectionId)
     .select()
     .single();
@@ -187,7 +213,15 @@ export async function updateGoogleDriveToken(connectionId: number, accessToken: 
     return { data: null, error };
   }
 
-  return { data: data, error: null };
+  // Parse connection_key for response
+  const connectionWithParsedKeys = data ? {
+    ...data,
+    parsedConnectionKeys: data.connection_key ?
+      parseConnectionKeyString(data.connection_key) :
+      []
+  } : null;
+
+  return { data: connectionWithParsedKeys, error: null };
 }
 
 export async function updateUserConnection(

@@ -14,7 +14,7 @@ interface ChatHistoryProps {
     currentChatId: number | null;
     isExpanded: boolean;
     onExpandedChange: (expanded: boolean) => void;
-    onChatSelect: (chatId: number) => Promise<void>;
+    onChatSelect: (chatId: number) => void;
     refreshTrigger?: number;
 }
 

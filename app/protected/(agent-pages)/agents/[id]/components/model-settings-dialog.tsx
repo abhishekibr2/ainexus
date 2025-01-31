@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -61,7 +61,7 @@ interface ModelSettingsDialogProps {
     onConnectionKeysChange: (keys: any) => void;
 }
 
-async function fetchGoogleSheets(accessToken: string, user_connection_id: string): Promise<GoogleSheet[]> {
+async function fetchGoogleSheets(accessToken: string, refreshToken: string, user_connection_id: string, router: any): Promise<GoogleSheet[]> {
     try {
         let response = await fetch(
             'https://www.googleapis.com/drive/v3/files?q=mimeType%3D%27application%2Fvnd.google-apps.spreadsheet%27',
@@ -72,7 +72,8 @@ async function fetchGoogleSheets(accessToken: string, user_connection_id: string
             }
         );
         if (response.status === 401) {
-            const newAccessToken = await refreshAccessToken(OAUTH_PROVIDERS.GOOGLE_DRIVE, accessToken, user_connection_id);
+            const newAccessToken = await refreshAccessToken(OAUTH_PROVIDERS.GOOGLE_DRIVE, refreshToken, user_connection_id);
+            console.log(newAccessToken)
             response = await fetch(
                 'https://www.googleapis.com/drive/v3/files?q=mimeType%3D%27application%2Fvnd.google-apps.spreadsheet%27',
                 {
@@ -81,11 +82,12 @@ async function fetchGoogleSheets(accessToken: string, user_connection_id: string
                     }
                 }
             );
+            router.refresh()
         }
         else if (!response.ok) {
             throw new Error('Failed to fetch sheets');
         }
-        
+
         const data = await response.json();
         return data.files.map((file: any) => ({
             id: file.id,
@@ -117,7 +119,7 @@ export function ModelSettingsDialog({
     const [sheets, setSheets] = useState<GoogleSheet[]>([]);
     const [loadingSheets, setLoadingSheets] = useState(false);
     const [selectedSheet, setSelectedSheet] = useState<GoogleSheet | null>(null);
-
+    const router = useRouter();
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsFormSchema),
         defaultValues: {
@@ -149,7 +151,7 @@ export function ModelSettingsDialog({
                     const modelData = await getUserAssignedModel(id);
                     if (modelData?.user_connection_id) {
                         setSelectedConnectionId(modelData.user_connection_id);
-                        const currentConnection = appConnections.find(conn => 
+                        const currentConnection = appConnections.find(conn =>
                             conn.id === modelData.user_connection_id);
                         if (currentConnection?.parsedConnectionKeys) {
                             const values = Object.fromEntries(
@@ -194,21 +196,23 @@ export function ModelSettingsDialog({
                     const currentConnection = availableConnections.find(
                         conn => conn.id === selectedConnectionId
                     );
-                    
+
                     if (currentConnection?.parsedConnectionKeys) {
+                        const refreshToken = currentConnection.parsedConnectionKeys.find(
+                            pair => pair.key === 'refresh_token'
+                        )?.value;
                         const accessToken = currentConnection.parsedConnectionKeys.find(
                             pair => pair.key === 'access_token'
                         )?.value;
-                        
-                        if (accessToken) {
-                            const sheetsList = await fetchGoogleSheets(accessToken, currentConnection.id.toString());
+                        if (refreshToken && accessToken) {
+                            const sheetsList = await fetchGoogleSheets(accessToken, refreshToken, currentConnection.id.toString(), router);
                             setSheets(sheetsList);
-                            
+
                             // Set selected sheet if one is already saved
                             const savedSheetId = currentConnection.parsedConnectionKeys.find(
                                 pair => pair.key === 'sheet_id'
                             )?.value;
-                            
+
                             if (savedSheetId) {
                                 const savedSheet = sheetsList.find(s => s.id === savedSheetId);
                                 if (savedSheet) {
@@ -229,7 +233,7 @@ export function ModelSettingsDialog({
                 }
             }
         };
-        
+
         loadSheets();
     }, [selectedConnectionId, model.o_auth, availableConnections]);
 
@@ -244,7 +248,7 @@ export function ModelSettingsDialog({
             );
             setConnectionFieldValues(values);
             setSelectedConnectionId(selectedConn.id);
-            
+
             onConnectionKeysChange({
                 ...values,
                 connection_id: selectedConn.id
@@ -258,7 +262,7 @@ export function ModelSettingsDialog({
                 ...data,
                 user_connection_id: selectedConnectionId
             });
-            
+
             toast({
                 title: "Success",
                 description: "Settings updated successfully",
@@ -474,8 +478,8 @@ export function ModelSettingsDialog({
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {availableConnections.map((conn) => (
-                                                        <SelectItem 
-                                                            key={conn.id} 
+                                                        <SelectItem
+                                                            key={conn.id}
                                                             value={conn.id.toString()}
                                                         >
                                                             <div className="flex items-center gap-2">
