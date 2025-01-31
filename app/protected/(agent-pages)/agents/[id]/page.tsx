@@ -80,7 +80,8 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
     });
     const { toast } = useToast();
     const [instruction, setInstruction] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(true)
+
     useEffect(() => {
         let isMounted = true;
 
@@ -209,7 +210,8 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
                     ...foundModel,
                     name: assignedModel.name,
                     description: assignedModel.description,
-                    is_auth: foundModel.is_auth
+                    is_auth: foundModel.is_auth,
+                    user_connection_id: assignedModel.user_connection_id
                 };
 
                 if (isMounted) {

@@ -71,6 +71,8 @@ export function getAuthorizationUrl(provider: OAuthProvider, state?: string): st
 }
 
 export async function refreshAccessToken(provider: OAuthProvider, refreshToken: string, connectionId: string): Promise<any> {
+    console.log(refreshToken)
+    console.log(connectionId)
     if (provider !== OAUTH_PROVIDERS.GOOGLE_DRIVE) {
         throw new Error(`Unsupported OAuth provider: ${provider}`)
     }
@@ -93,7 +95,7 @@ export async function refreshAccessToken(provider: OAuthProvider, refreshToken: 
             throw new Error(`HTTP error! status: ${response.status}, message: ${errorData}`);
         }
         const data = await response.json();
-        updateGoogleDriveToken(parseInt(connectionId), data.access_token);
+        await updateGoogleDriveToken(parseInt(connectionId), data.access_token);
         return data.access_token;
     } catch (error) {
         console.error('Error refreshing token:', error);
