@@ -19,12 +19,12 @@ interface SheetSettingsDialogProps {
     selectedSheetId?: string;
     selectedTab?: string;
     accessToken?: string;
+    connectionId: number;
     onSheetChange: (sheetId: string) => void;
     onTabChange: (tab: string) => void;
-    connectionId?: number;
 }
 
-async function fetchSheetTabs(sheetId: string, accessToken: string): Promise<SheetTab[]> {
+async function fetchSheetTabs(sheetId: string, accessToken: string, connectionId: number): Promise<SheetTab[]> {
     try {
         const response = await fetch(
             `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`,
@@ -37,7 +37,7 @@ async function fetchSheetTabs(sheetId: string, accessToken: string): Promise<She
 
         if (!response.ok) {
             if (response.status === 401) {
-                await refreshAccessToken(OAUTH_PROVIDERS.GOOGLE_DRIVE, accessToken);
+                await refreshAccessToken(OAUTH_PROVIDERS.GOOGLE_DRIVE, accessToken, connectionId.toString());
             }
             throw new Error('Failed to fetch sheet tabs');
         }
@@ -59,9 +59,9 @@ export function SheetSettingsDialog({
     selectedSheetId,
     selectedTab,
     accessToken,
+    connectionId,
     onSheetChange,
     onTabChange,
-    connectionId
 }: SheetSettingsDialogProps) {
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
@@ -81,7 +81,7 @@ export function SheetSettingsDialog({
     useEffect(() => {
         if (currentSheetId && accessToken && open) {
             setIsLoadingTabs(true);
-            fetchSheetTabs(currentSheetId, accessToken)
+            fetchSheetTabs(currentSheetId, accessToken, connectionId)
                 .then(tabs => {
                     setSheetTabs(tabs);
                     // Only set default tab if no tab is selected AND there are tabs available
@@ -129,13 +129,13 @@ export function SheetSettingsDialog({
                 selectedSheet.name,
                 currentTab
             );
-            
+
             if (error) throw error;
-            
+
             // Notify parent components
             onSheetChange(currentSheetId);
             onTabChange(currentTab);
-            
+
             toast({
                 title: "Success",
                 description: "Sheet settings updated successfully",
@@ -224,8 +224,8 @@ export function SheetSettingsDialog({
                     )}
                 </div>
                 <DialogFooter>
-                    <Button 
-                        onClick={handleSave} 
+                    <Button
+                        onClick={handleSave}
                         disabled={isLoadingTabs || isSaving || !currentSheetId || !currentTab}
                     >
                         {isSaving ? (
