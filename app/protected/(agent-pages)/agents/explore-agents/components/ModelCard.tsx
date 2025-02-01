@@ -7,7 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { assignModelToUser } from "@/utils/supabase/actions/user/assignedAgents";
 import { signInWithGoogle } from "@/utils/supabase/actions/oauth";
-import { Model } from "./types";
 import { ModelConfigForm } from "./ModelConfigForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Model } from "@/types/Models";
 
 const modelConfigSchema = z.object({
     basic: z.object({

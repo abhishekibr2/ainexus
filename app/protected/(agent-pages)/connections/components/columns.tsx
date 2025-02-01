@@ -1,33 +1,7 @@
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Connection, ConnectionKeyPair } from "@/utils/supabase/actions/user/connections";
-import { Button } from "@/components/ui/button";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { useState } from "react";
 import { EditConnectionDialog } from "./edit-connection-dialog";
-
-const HiddenKeyDisplay = ({ keyPair }: { keyPair: ConnectionKeyPair }) => {
-    const [showKey, setShowKey] = useState(false);
-
-    return (
-        <Badge variant="secondary" className="text-xs flex items-center gap-2">
-            <span className="font-semibold">{keyPair.key}:</span>
-            <span>{showKey ? keyPair.value : '••••••••'}</span>
-            <Button
-                variant="ghost"
-                size="icon"
-                className="h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setShowKey(!showKey)}
-            >
-                {showKey ? (
-                    <EyeOffIcon className="h-3 w-3" />
-                ) : (
-                    <EyeIcon className="h-3 w-3" />
-                )}
-            </Button>
-        </Badge>
-    );
-};
 
 type Column = {
     accessorKey: keyof Connection | 'application.name' | 'actions';

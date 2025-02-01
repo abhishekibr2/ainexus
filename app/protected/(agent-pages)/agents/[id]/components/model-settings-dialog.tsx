@@ -25,6 +25,7 @@ import { updateUserConnection } from "@/utils/supabase/actions/user/connections"
 import { getStarterPrompts, removeStarterPrompt } from "@/utils/supabase/actions/user/starterPrompts";
 import { SheetSettingsDialog } from "./sheet-settings-dialog";
 import { OAUTH_PROVIDERS, refreshAccessToken } from "@/utils/oauth/oauth-config";
+import { Model } from "@/types/Models";
 
 const settingsFormSchema = z.object({
     name: z.string().optional(),
@@ -34,17 +35,6 @@ const settingsFormSchema = z.object({
 });
 
 type SettingsFormValues = z.infer<typeof settingsFormSchema>;
-
-interface Model {
-    id: number;
-    name: string;
-    description: string;
-    icon: string;
-    is_auth: boolean;
-    app_id: number;
-    fields?: string[];
-    o_auth: boolean;
-}
 
 interface GoogleSheet {
     id: string;

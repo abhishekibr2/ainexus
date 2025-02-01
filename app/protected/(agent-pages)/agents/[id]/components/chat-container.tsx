@@ -11,22 +11,7 @@ import { ChatMessage } from "@/utils/supabase/actions/user/user_chat";
 import { updateUserAssignedModel } from "@/utils/supabase/actions/user/assignedAgents";
 import { useRouter } from "next/navigation";
 import { getUserChatById, createUserChat, updateUserChat } from "@/utils/supabase/actions/user/user_chat";
-
-interface Model {
-    id: number;
-    created_at: string;
-    name: string;
-    description: string;
-    user_connection_id: string;
-    icon: string;
-    is_auth: boolean;
-    created_by: string;
-    app_id: number;
-    chatflow_id: string;
-    fields?: string[];
-    override_config?: string;
-    o_auth: boolean;
-}
+import { Model } from "@/types/Models";
 
 interface ChatContainerProps {
     model: Model;

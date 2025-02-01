@@ -6,20 +6,7 @@ import { motion } from "framer-motion";
 import { ModelSettingsDialog } from "./model-settings-dialog";
 import { AccessibleVariablesDialog } from "./accessible-variables-dialog";
 import { User } from "@supabase/supabase-js";
-
-interface Model {
-    id: number;
-    name: string;
-    description: string;
-    icon: string;
-    is_auth: boolean;
-    app_id: number;
-    fields?: string[];
-    o_auth: boolean;
-    chatflow_id: string;
-    override_config?: string;
-    user_connection_id: string;
-}
+import { Model } from "@/types/Models";
 
 interface ChatHeaderProps {
     model: Model;
