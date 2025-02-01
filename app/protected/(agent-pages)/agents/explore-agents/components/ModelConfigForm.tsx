@@ -16,7 +16,8 @@ import { createClient } from "@/utils/supabase/client";
 import { createUserConnection, getUserConnections } from "@/utils/supabase/actions/user/connections";
 import { getApplications } from "@/utils/supabase/actions/user/connections";
 import { AddConnectionDialog } from "../../../connections/components/add-connection-dialog";
-import { Model, Connection } from "./types";
+import { Connection } from "@/types/Connection";
+import { Model } from "@/types/Models";
 
 // Step form schema
 const modelConfigSchema = z.object({

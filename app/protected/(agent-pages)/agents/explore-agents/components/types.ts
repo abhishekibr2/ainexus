@@ -1,45 +1,4 @@
-import { LucideIcon } from "lucide-react";
 import { z } from "zod";
-
-export interface ConnectionKey {
-    key: string;
-    value: string;
-}
-
-export interface Connection {
-    id: number;
-    user_id: string;
-    app_id: number;
-    connection_name: string;
-    connection_key: string[];
-    parsedConnectionKeys?: ConnectionKey[];
-}
-
-export interface Model {
-    id: number;
-    name: string;
-    description?: string;
-    icon: string;
-    instruction?: string;
-    created_at: string;
-    is_public: boolean;
-    is_auth: boolean;
-    override_config: any;
-    created_by: {
-        name: string;
-    };
-    app_id: number;
-    permission?: {
-        type: 'global' | 'restricted';
-        restricted_to?: ('user' | 'workspace')[];
-        restricted_users?: string[];
-        restricted_workspaces?: number[];
-    };
-    chatflow_id: string;
-    fields: string[];
-    o_auth: boolean;
-    provider?: string;
-}
 
 // Step form schema
 export const modelConfigSchema = z.object({
@@ -78,11 +37,6 @@ export const defaultModelConfig: ModelConfigValues = {
     },
 };
 
-export interface IconType {
-    id: string;
-    icon: LucideIcon;
-    label: string;
-}
 
 export const availableIcons = [
     { id: "brain", icon: "Brain", label: "Brain" },

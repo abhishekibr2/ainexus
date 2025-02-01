@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { addStarterPrompt, getStarterPrompts } from "@/utils/supabase/actions/user/starterPrompts";
 import { useToast } from "@/hooks/use-toast";
+import { Model } from "@/types/Models";
 
 interface Message {
     id: string;
@@ -23,10 +24,6 @@ interface Message {
     content: string;
 }
 
-interface Model {
-    name: string;
-    icon: string;
-}
 
 interface MessageListProps {
     messages: Message[];

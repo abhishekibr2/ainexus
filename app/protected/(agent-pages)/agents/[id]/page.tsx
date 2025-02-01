@@ -16,24 +16,9 @@ import { ModelNotFound } from "./components/model-not-found";
 import { ChatContainer } from "./components/chat-container";
 import { User } from "@supabase/supabase-js";
 import { LoadingState } from './components/loading-state';
+import { Model } from "@/types/Models";
 
 type Message = ChatMessage;
-
-interface Model {
-    id: number;
-    created_at: string;
-    name: string;
-    description: string;
-    icon: string;
-    is_auth: boolean;
-    code: string | null;
-    created_by: string;
-    app_id: number;
-    fields?: string[];
-    chatflow_id: string;
-    user_connection_id: string;
-    o_auth: boolean;
-}
 
 const availableIcons: { [key: string]: any } = {
     brain: Brain,

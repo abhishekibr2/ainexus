@@ -8,10 +8,10 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from 'next/navigation';
-import type { Model } from "./components/types";
 import { ModelCard } from "./components/ModelCard";
 import { ModelCardSkeleton } from "./components/ModelCardSkeleton";
 import { EmptyState } from "./components/EmptyState";
+import { Model } from "@/types/Models";
 
 const container = {
     hidden: { opacity: 0 },

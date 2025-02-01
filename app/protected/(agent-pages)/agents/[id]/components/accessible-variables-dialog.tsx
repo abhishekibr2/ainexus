@@ -6,16 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Code2, Check } from "lucide-react";
 import { getUserTimezone } from "@/utils/supabase/actions/user/onboarding";
-
-interface Model {
-    id: number;
-    name: string;
-    is_auth: boolean;
-    override_config?: string;
-    chatflow_id: string;
-    fields?: string[];
-    o_auth: boolean;
-}
+import { Model } from "@/types/Models";
 
 interface AccessibleVariablesDialogProps {
     model: Model;
