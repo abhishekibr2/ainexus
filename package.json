@@ -61,7 +61,8 @@
     "simple-oauth2": "^5.1.0",
     "unframer": "^2.13.0",
     "use-debounce": "^10.0.4",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@types/node": "22.10.2",
